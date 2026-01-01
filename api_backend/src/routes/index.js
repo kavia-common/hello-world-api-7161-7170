@@ -367,6 +367,24 @@ router.get('/hello', (req, res) => {
  *           description: Assessment status.
  *           enum: ["Draft", "Assigned", "In Progress", "Completed"]
  *           example: "Assigned"
+ *         marks:
+ *           oneOf:
+ *             - type: number
+ *             - type: string
+ *           description: Optional marks/score for the assessment (number or numeric string in requests; stored as number).
+ *           example: 85
+ *         basisOfScoring:
+ *           type: string
+ *           description: Optional basis of scoring (e.g., rubric/criteria).
+ *           example: "Rubric-based scoring across 5 competencies."
+ *         strength:
+ *           type: string
+ *           description: Optional strengths noted during assessment.
+ *           example: "Strong system design and API clarity."
+ *         areasOfImprovement:
+ *           type: string
+ *           description: Optional areas of improvement noted during assessment.
+ *           example: "Increase unit test coverage and edge-case handling."
  *         createdAt:
  *           type: string
  *           description: Server timestamp when record was stored.
@@ -404,6 +422,24 @@ router.get('/hello', (req, res) => {
  *           type: string
  *           description: Optional comments.
  *           example: "Strong fundamentals; work on testing depth."
+ *         marks:
+ *           oneOf:
+ *             - type: number
+ *             - type: string
+ *           description: Optional marks/score associated with this feedback (number or numeric string in requests; stored as number).
+ *           example: 4.5
+ *         basisOfScoring:
+ *           type: string
+ *           description: Optional basis of scoring (e.g., rubric/criteria).
+ *           example: "Score averaged across communication and technical depth."
+ *         strength:
+ *           type: string
+ *           description: Optional strengths noted in feedback.
+ *           example: "Clear communication and strong ownership."
+ *         areasOfImprovement:
+ *           type: string
+ *           description: Optional areas of improvement noted in feedback.
+ *           example: "Proactively document decisions and tradeoffs."
  *         submittedAt:
  *           type: string
  *           description: Server timestamp when feedback was submitted.

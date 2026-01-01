@@ -74,6 +74,39 @@ function parseOptionalStatus(value) {
 }
 
 /**
+ * Parses optional "marks" which can be a number or a numeric string.
+ * Returns { value: number|undefined } or { error: string }.
+ */
+function parseOptionalMarks(value) {
+  if (value === undefined || value === null || value === '') return { value: undefined };
+
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return { error: 'marks must be a finite number.' };
+    return { value };
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return { value: undefined };
+    const n = Number(trimmed);
+    if (!Number.isFinite(n)) return { error: 'marks must be a number or a numeric string.' };
+    return { value: n };
+  }
+
+  return { error: 'marks must be a number or a numeric string.' };
+}
+
+/**
+ * Parses optional text fields that must be strings when provided.
+ * Trims strings; treats null as undefined.
+ */
+function parseOptionalText(value, fieldName) {
+  if (value === undefined || value === null || value === '') return { value: undefined };
+  if (typeof value !== 'string') return { error: `${fieldName} must be a string.` };
+  return { value: value.trim() };
+}
+
+/**
  * Parses assignedTo items:
  * [{ employeeId, employeeName, email }]
  *
@@ -148,6 +181,10 @@ class AssessmentsController {
    * - assignedTo (array of { employeeId, employeeName, email })
    * - dueDate (ISO date string)
    * - status (Draft | Assigned | In Progress | Completed)
+   * - marks (number or numeric string; stored as number)
+   * - basisOfScoring (string)
+   * - strength (string)
+   * - areasOfImprovement (string)
    *
    * @param {import('express').Request} req Express request
    * @param {import('express').Response} res Express response
@@ -185,6 +222,18 @@ class AssessmentsController {
     const statusParsed = parseOptionalStatus(payload.status);
     if (statusParsed.error) errors.push({ field: 'status', message: statusParsed.error });
 
+    const marksParsed = parseOptionalMarks(payload.marks);
+    if (marksParsed.error) errors.push({ field: 'marks', message: marksParsed.error });
+
+    const basisParsed = parseOptionalText(payload.basisOfScoring, 'basisOfScoring');
+    if (basisParsed.error) errors.push({ field: 'basisOfScoring', message: basisParsed.error });
+
+    const strengthParsed = parseOptionalText(payload.strength, 'strength');
+    if (strengthParsed.error) errors.push({ field: 'strength', message: strengthParsed.error });
+
+    const aoiParsed = parseOptionalText(payload.areasOfImprovement, 'areasOfImprovement');
+    if (aoiParsed.error) errors.push({ field: 'areasOfImprovement', message: aoiParsed.error });
+
     if (errors.length > 0) {
       return res.status(400).json({
         status: 'error',
@@ -200,6 +249,10 @@ class AssessmentsController {
       assignedTo: assignedToParsed.value,
       dueDate: dueDateParsed.value,
       status: statusParsed.value ?? 'Draft',
+      marks: marksParsed.value,
+      basisOfScoring: basisParsed.value,
+      strength: strengthParsed.value,
+      areasOfImprovement: aoiParsed.value,
     };
 
     try {
@@ -324,6 +377,18 @@ class AssessmentsController {
     const statusParsed = parseOptionalStatus(payload.status);
     if (statusParsed.error) errors.push({ field: 'status', message: statusParsed.error });
 
+    const marksParsed = parseOptionalMarks(payload.marks);
+    if (marksParsed.error) errors.push({ field: 'marks', message: marksParsed.error });
+
+    const basisParsed = parseOptionalText(payload.basisOfScoring, 'basisOfScoring');
+    if (basisParsed.error) errors.push({ field: 'basisOfScoring', message: basisParsed.error });
+
+    const strengthParsed = parseOptionalText(payload.strength, 'strength');
+    if (strengthParsed.error) errors.push({ field: 'strength', message: strengthParsed.error });
+
+    const aoiParsed = parseOptionalText(payload.areasOfImprovement, 'areasOfImprovement');
+    if (aoiParsed.error) errors.push({ field: 'areasOfImprovement', message: aoiParsed.error });
+
     if (errors.length > 0) {
       return res.status(400).json({
         status: 'error',
@@ -347,6 +412,10 @@ class AssessmentsController {
       assignedTo: assignedToParsed.value,
       dueDate: dueDateParsed.value,
       status: statusParsed.value ?? existing.status ?? 'Draft',
+      marks: marksParsed.value,
+      basisOfScoring: basisParsed.value,
+      strength: strengthParsed.value,
+      areasOfImprovement: aoiParsed.value,
     };
 
     const updated = await assessmentsStore.replaceAssessment(pathId, replacement);
@@ -376,6 +445,10 @@ class AssessmentsController {
    * - assignedTo
    * - dueDate
    * - status
+   * - marks
+   * - basisOfScoring
+   * - strength
+   * - areasOfImprovement
    *
    * @param {import('express').Request} req Express request
    * @param {import('express').Response} res Express response
@@ -439,6 +512,30 @@ class AssessmentsController {
       const statusParsed = parseOptionalStatus(payload.status);
       if (statusParsed.error) errors.push({ field: 'status', message: statusParsed.error });
       if (statusParsed.value !== undefined) patch.status = statusParsed.value;
+    }
+
+    if (payload.marks !== undefined) {
+      const marksParsed = parseOptionalMarks(payload.marks);
+      if (marksParsed.error) errors.push({ field: 'marks', message: marksParsed.error });
+      patch.marks = marksParsed.value;
+    }
+
+    if (payload.basisOfScoring !== undefined) {
+      const basisParsed = parseOptionalText(payload.basisOfScoring, 'basisOfScoring');
+      if (basisParsed.error) errors.push({ field: 'basisOfScoring', message: basisParsed.error });
+      patch.basisOfScoring = basisParsed.value;
+    }
+
+    if (payload.strength !== undefined) {
+      const strengthParsed = parseOptionalText(payload.strength, 'strength');
+      if (strengthParsed.error) errors.push({ field: 'strength', message: strengthParsed.error });
+      patch.strength = strengthParsed.value;
+    }
+
+    if (payload.areasOfImprovement !== undefined) {
+      const aoiParsed = parseOptionalText(payload.areasOfImprovement, 'areasOfImprovement');
+      if (aoiParsed.error) errors.push({ field: 'areasOfImprovement', message: aoiParsed.error });
+      patch.areasOfImprovement = aoiParsed.value;
     }
 
     if (errors.length > 0) {
