@@ -146,7 +146,7 @@ router.get('/hello', (req, res) => {
  *   post:
  *     tags: [Employees]
  *     summary: Create an employee record
- *     description: Creates and stores an employee record (MongoDB). Requires employeeId, employeeName, and email.
+ *     description: Creates and stores an employee record (in-memory). Requires employeeId, employeeName, and email.
  *     requestBody:
  *       required: true
  *       content:
@@ -179,7 +179,7 @@ router.post('/employees', (req, res) => employeesController.create(req, res));
  *   get:
  *     tags: [Employees]
  *     summary: List employee records
- *     description: Lists all stored employee records (MongoDB).
+ *     description: Lists all stored employee records (in-memory).
  *     responses:
  *       200:
  *         description: Employees list.
@@ -207,7 +207,7 @@ router.get('/employees', (req, res) => employeesController.list(req, res));
  *   put:
  *     tags: [Employees]
  *     summary: Replace an employee record
- *     description: Replaces the full employee record for the given employeeId (MongoDB). employeeName and email are required. If employeeId is present in the body, it must match the path parameter.
+ *     description: Replaces the full employee record for the given employeeId (in-memory). employeeName and email are required. If employeeId is present in the body, it must match the path parameter.
  *     parameters:
  *       - in: path
  *         name: employeeId
@@ -241,7 +241,7 @@ router.get('/employees', (req, res) => employeesController.list(req, res));
  *   patch:
  *     tags: [Employees]
  *     summary: Partially update an employee record
- *     description: Partially updates fields for the given employeeId (MongoDB). Validates updated fields (including feedbackRating enum). If employeeId is present in the body, it must match the path parameter.
+ *     description: Partially updates fields for the given employeeId (in-memory). Validates updated fields (including feedbackRating enum). If employeeId is present in the body, it must match the path parameter.
  *     parameters:
  *       - in: path
  *         name: employeeId
@@ -276,7 +276,7 @@ router.get('/employees', (req, res) => employeesController.list(req, res));
  *   delete:
  *     tags: [Employees]
  *     summary: Delete an employee record
- *     description: Deletes the employee record for the given employeeId (MongoDB).
+ *     description: Deletes the employee record for the given employeeId (in-memory).
  *     parameters:
  *       - in: path
  *         name: employeeId

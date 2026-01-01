@@ -182,7 +182,7 @@ class EmployeesController {
 
   /**
    * PUBLIC_INTERFACE
-   * Lists all stored employee records (MongoDB).
+   * Lists all stored employee records (in-memory).
    *
    * @param {import('express').Request} req Express request
    * @param {import('express').Response} res Express response
