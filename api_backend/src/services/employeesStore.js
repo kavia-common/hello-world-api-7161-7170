@@ -46,7 +46,87 @@ function listEmployees() {
   return employees;
 }
 
+/**
+ * PUBLIC_INTERFACE
+ * Finds an employee by employeeId.
+ *
+ * @param {string} employeeId Employee ID to look up.
+ * @returns {object|undefined} Employee record if found; otherwise undefined.
+ */
+function getEmployeeById(employeeId) {
+  return employees.find((e) => e.employeeId === employeeId);
+}
+
+/**
+ * PUBLIC_INTERFACE
+ * Replaces an existing employee record by employeeId.
+ *
+ * Preserves the original createdAt timestamp.
+ *
+ * @param {string} employeeId Employee ID to replace.
+ * @param {object} replacement Replacement employee record.
+ * @returns {object|undefined} Updated employee if found; otherwise undefined.
+ */
+function replaceEmployee(employeeId, replacement) {
+  const idx = employees.findIndex((e) => e.employeeId === employeeId);
+  if (idx === -1) return undefined;
+
+  const existing = employees[idx];
+  const updated = {
+    ...replacement,
+    employeeId,
+    createdAt: existing.createdAt,
+  };
+
+  employees[idx] = updated;
+  return updated;
+}
+
+/**
+ * PUBLIC_INTERFACE
+ * Applies a partial update to an existing employee record by employeeId.
+ *
+ * Preserves employeeId and createdAt.
+ *
+ * @param {string} employeeId Employee ID to patch.
+ * @param {object} patch Partial update object.
+ * @returns {object|undefined} Updated employee if found; otherwise undefined.
+ */
+function patchEmployee(employeeId, patch) {
+  const idx = employees.findIndex((e) => e.employeeId === employeeId);
+  if (idx === -1) return undefined;
+
+  const existing = employees[idx];
+  const updated = {
+    ...existing,
+    ...patch,
+    employeeId: existing.employeeId,
+    createdAt: existing.createdAt,
+  };
+
+  employees[idx] = updated;
+  return updated;
+}
+
+/**
+ * PUBLIC_INTERFACE
+ * Deletes an employee record by employeeId.
+ *
+ * @param {string} employeeId Employee ID to delete.
+ * @returns {boolean} True if deleted; false if not found.
+ */
+function deleteEmployee(employeeId) {
+  const idx = employees.findIndex((e) => e.employeeId === employeeId);
+  if (idx === -1) return false;
+  employees.splice(idx, 1);
+  return true;
+}
+
 module.exports = {
   createEmployee,
   listEmployees,
+  getEmployeeById,
+  replaceEmployee,
+  patchEmployee,
+  deleteEmployee,
 };

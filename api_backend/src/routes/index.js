@@ -201,4 +201,97 @@ router.post('/employees', (req, res) => employeesController.create(req, res));
  */
 router.get('/employees', (req, res) => employeesController.list(req, res));
 
+/**
+ * @swagger
+ * /employees/{employeeId}:
+ *   put:
+ *     tags: [Employees]
+ *     summary: Replace an employee record
+ *     description: Replaces the full employee record for the given employeeId (in-memory). employeeName and email are required. If employeeId is present in the body, it must match the path parameter.
+ *     parameters:
+ *       - in: path
+ *         name: employeeId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Employee ID to replace.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/Employee'
+ *     responses:
+ *       200:
+ *         description: Employee updated.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   $ref: '#/components/schemas/Employee'
+ *       400:
+ *         description: Invalid request or validation failure.
+ *       404:
+ *         description: Employee not found.
+ *   patch:
+ *     tags: [Employees]
+ *     summary: Partially update an employee record
+ *     description: Partially updates fields for the given employeeId (in-memory). Validates updated fields (including feedbackRating enum). If employeeId is present in the body, it must match the path parameter.
+ *     parameters:
+ *       - in: path
+ *         name: employeeId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Employee ID to patch.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             description: Partial employee fields to update.
+ *     responses:
+ *       200:
+ *         description: Employee updated.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   $ref: '#/components/schemas/Employee'
+ *       400:
+ *         description: Invalid request or validation failure.
+ *       404:
+ *         description: Employee not found.
+ *   delete:
+ *     tags: [Employees]
+ *     summary: Delete an employee record
+ *     description: Deletes the employee record for the given employeeId (in-memory).
+ *     parameters:
+ *       - in: path
+ *         name: employeeId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Employee ID to delete.
+ *     responses:
+ *       204:
+ *         description: Employee deleted.
+ *       404:
+ *         description: Employee not found.
+ */
+router.put('/employees/:employeeId', (req, res) => employeesController.replace(req, res));
+router.patch('/employees/:employeeId', (req, res) => employeesController.patch(req, res));
+router.delete('/employees/:employeeId', (req, res) => employeesController.delete(req, res));
+
 module.exports = router;
