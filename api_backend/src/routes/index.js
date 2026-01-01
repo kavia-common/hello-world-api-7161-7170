@@ -6,6 +6,7 @@ const learningPathsController = require('../controllers/learningPaths');
 const assessmentsController = require('../controllers/assessments');
 const metricsController = require('../controllers/metrics');
 const authController = require('../controllers/auth');
+const { verifyJwt, requireRole } = require('../middleware');
 
 const router = express.Router();
 
@@ -868,9 +869,24 @@ router.get('/employees', (req, res) => employeesController.list(req, res));
  *       404:
  *         description: Employee not found.
  */
-router.put('/employees/:employeeId', (req, res) => employeesController.replace(req, res));
-router.patch('/employees/:employeeId', (req, res) => employeesController.patch(req, res));
-router.delete('/employees/:employeeId', (req, res) => employeesController.delete(req, res));
+router.put(
+  '/employees/:employeeId',
+  verifyJwt,
+  requireRole(['admin', 'manager']),
+  (req, res) => employeesController.replace(req, res)
+);
+router.patch(
+  '/employees/:employeeId',
+  verifyJwt,
+  requireRole(['admin', 'manager']),
+  (req, res) => employeesController.patch(req, res)
+);
+router.delete(
+  '/employees/:employeeId',
+  verifyJwt,
+  requireRole(['admin', 'manager']),
+  (req, res) => employeesController.delete(req, res)
+);
 
 /**
  * @swagger
