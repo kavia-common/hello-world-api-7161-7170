@@ -166,12 +166,146 @@ router.get('/metrics/learning-paths', metricsController.getLearningPathsMetrics)
 router.get('/metrics/skill-factories', metricsController.getSkillFactoriesMetrics);
 
 /**
+ * @swagger
+ * tags:
+ *   - name: Backups
+ *     description: Create and retrieve in-memory backup snapshots.
+ */
+
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     BackupListItem:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *           description: Backup id
+ *         timestamp:
+ *           type: string
+ *           description: ISO timestamp when backup was created
+ *         metadata:
+ *           type: object
+ *           description: Optional metadata recorded at creation time
+ *     BackupSnapshot:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *         timestamp:
+ *           type: string
+ *         data:
+ *           type: object
+ *         metadata:
+ *           type: object
+ *     BackupJobRun:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *           description: Unique job run id
+ *         startedAt:
+ *           type: string
+ *           description: ISO timestamp
+ *         finishedAt:
+ *           type: string
+ *           description: ISO timestamp
+ *         status:
+ *           type: string
+ *           enum: [running, success, error]
+ *         trigger:
+ *           type: string
+ *           description: What triggered the run (e.g. scheduler)
+ *         durationMs:
+ *           type: number
+ *         backup:
+ *           type: object
+ *           description: Backup metadata produced by the run (on success)
+ *         error:
+ *           type: string
+ *           description: Error message (on failure)
+ */
+
+/**
  * Backups
  * - POST /backup is protected (admin/manager)
  * - GET /backup and GET /backup/:id are public reads
+ * - GET /backup/jobs is protected (admin/manager) to inspect recent scheduler runs
+ */
+
+/**
+ * @swagger
+ * /backup:
+ *   post:
+ *     summary: Create a backup snapshot
+ *     description: Creates a backup snapshot by reading from in-memory stores (no external HTTP calls).
+ *     tags: [Backups]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       201:
+ *         description: Backup created
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       500:
+ *         description: Server error
  */
 router.post('/backup', verifyJwt, requireRole(['admin', 'manager']), backupController.createBackup);
+
+/**
+ * @swagger
+ * /backup:
+ *   get:
+ *     summary: List backups
+ *     description: Lists stored backups (metadata only). Backups are stored in-memory and reset on restart.
+ *     tags: [Backups]
+ *     responses:
+ *       200:
+ *         description: Backup list
+ */
 router.get('/backup', backupController.listBackups);
+
+/**
+ * @swagger
+ * /backup/{id}:
+ *   get:
+ *     summary: Get backup by id
+ *     description: Fetches a specific backup snapshot by id.
+ *     tags: [Backups]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Backup snapshot
+ *       404:
+ *         description: Not found
+ */
 router.get('/backup/:id', backupController.getBackupById);
+
+/**
+ * @swagger
+ * /backup/jobs:
+ *   get:
+ *     summary: List recent backup scheduler runs
+ *     description: Lists recent periodic backup runs (start/end/status/error). Protected for operational visibility.
+ *     tags: [Backups]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Job run list
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ */
+router.get('/backup/jobs', verifyJwt, requireRole(['admin', 'manager']), backupController.listBackupJobs);
 
 module.exports = router;

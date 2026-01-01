@@ -1,6 +1,7 @@
 'use strict';
 
 const backupsStore = require('../services/backupsStore');
+const backupJobsStore = require('../services/backupJobsStore');
 
 const employeesStore = require('../services/employeesStore');
 const skillFactoriesStore = require('../services/skillFactoriesStore');
@@ -20,7 +21,7 @@ const metricsController = require('./metrics');
  */
 async function computeMetricsSnapshot() {
   // Prefer summary as a stable "single object" snapshot.
-  if (!metricsController || typeof metricsController.getSummary !== 'function') return undefined;
+  if (!metricsController || typeof metricsController.summary !== 'function') return undefined;
 
   let captured;
   /** @type {any} */
@@ -39,8 +40,58 @@ async function computeMetricsSnapshot() {
   // Minimal req object; controller should not rely on req for GET metrics.
   const req = { query: {}, params: {} };
 
-  await metricsController.getSummary(req, res);
+  await metricsController.summary(req, res);
   return captured;
+}
+
+/**
+ * PUBLIC_INTERFACE
+ * Creates a backup snapshot by reading from in-memory stores (no external HTTP calls).
+ *
+ * This is the single internal function used by:
+ * - POST /backup
+ * - the periodic scheduler
+ *
+ * @param {{ user?: any, trigger?: string }} options
+ * @returns {Promise<{ id: string, timestamp: string }>} Stored backup metadata
+ */
+async function runBackupInternal(options = {}) {
+  const timestamp = new Date().toISOString();
+
+  const [employees, skillFactories, learningPaths, assessments, announcements, instructions, metrics] =
+    await Promise.all([
+      employeesStore.listEmployees(),
+      skillFactoriesStore.listSkillFactories(),
+      learningPathsStore.listLearningPaths(),
+      assessmentsStore.listAssessments(),
+      announcementsStore.listAnnouncements(),
+      instructionsStore.listInstructions(),
+      computeMetricsSnapshot(),
+    ]);
+
+  const user = options.user;
+
+  const snapshot = {
+    timestamp,
+    data: {
+      employees,
+      skillFactories,
+      learningPaths,
+      assessments,
+      announcements,
+      instructions,
+      // metrics is optional; include if computed
+      ...(metrics !== undefined ? { metrics } : {}),
+    },
+    metadata: {
+      createdBy: user && (user.sub || user.username) ? (user.sub || user.username) : undefined,
+      role: user && user.role ? user.role : undefined,
+      trigger: typeof options.trigger === 'string' ? options.trigger : undefined,
+    },
+  };
+
+  const stored = await backupsStore.put(snapshot);
+  return { id: stored.id, timestamp: stored.timestamp };
 }
 
 /**
@@ -49,51 +100,19 @@ async function computeMetricsSnapshot() {
  *
  * The resulting snapshot is stored into backupsStore and the id/timestamp are returned.
  *
+ * Protected by route-level middleware (admin/manager).
+ *
  * @param {import('express').Request} req Express Request
  * @param {import('express').Response} res Express Response
  * @returns {Promise<void>} JSON response
  */
 async function createBackup(req, res) {
   try {
-    const timestamp = new Date().toISOString();
-
-    const [employees, skillFactories, learningPaths, assessments, announcements, instructions, metrics] =
-      await Promise.all([
-        employeesStore.listEmployees(),
-        skillFactoriesStore.listSkillFactories(),
-        learningPathsStore.listLearningPaths(),
-        assessmentsStore.listAssessments(),
-        announcementsStore.listAnnouncements(),
-        instructionsStore.listInstructions(),
-        computeMetricsSnapshot(),
-      ]);
-
-    const snapshot = {
-      timestamp,
-      data: {
-        employees,
-        skillFactories,
-        learningPaths,
-        assessments,
-        announcements,
-        instructions,
-        // metrics is optional; include if computed
-        ...(metrics !== undefined ? { metrics } : {}),
-      },
-      metadata: {
-        createdBy: req.user && req.user.sub ? req.user.sub : undefined,
-        role: req.user && req.user.role ? req.user.role : undefined,
-      },
-    };
-
-    const stored = await backupsStore.put(snapshot);
+    const stored = await runBackupInternal({ user: req.user, trigger: 'api' });
 
     return res.status(201).json({
       status: 'success',
-      data: {
-        id: stored.id,
-        timestamp: stored.timestamp,
-      },
+      data: stored,
     });
   } catch (err) {
     return res.status(500).json({
@@ -145,8 +164,30 @@ async function getBackupById(req, res) {
   });
 }
 
+/**
+ * PUBLIC_INTERFACE
+ * Lists recent backup scheduler runs and their statuses.
+ *
+ * Protected by route-level middleware (admin/manager) for operational visibility.
+ *
+ * @param {import('express').Request} _req Express Request
+ * @param {import('express').Response} res Express Response
+ * @returns {Promise<void>} JSON response
+ */
+async function listBackupJobs(_req, res) {
+  const runs = backupJobsStore.listRuns();
+  return res.status(200).json({
+    status: 'success',
+    data: runs,
+    count: runs.length,
+  });
+}
+
 module.exports = {
+  runBackupInternal,
   createBackup,
   listBackups,
   getBackupById,
+  listBackupJobs,
 };
+

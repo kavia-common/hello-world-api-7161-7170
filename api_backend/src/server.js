@@ -2,6 +2,8 @@
 
 const app = require('./app');
 
+const { startBackupScheduler } = require('./services/backupScheduler');
+
 const PORT = Number(process.env.PORT) || 3001;
 const HOST = process.env.HOST || '0.0.0.0';
 
@@ -22,9 +24,18 @@ async function start() {
     console.log(`Server running at http://${HOST}:${PORT}`);
   });
 
+  // Start periodic backup scheduler (interval configurable via BACKUP_INTERVAL_MS).
+  const scheduler = startBackupScheduler();
+
   const shutdown = async (signal) => {
     try {
       console.log(`${signal} signal received: closing HTTP server`);
+
+      if (scheduler && typeof scheduler.stop === 'function') {
+        console.log('Stopping backup scheduler');
+        scheduler.stop();
+      }
+
       await new Promise((resolve) => server.close(resolve));
       console.log('HTTP server closed');
       process.exit(0);
