@@ -84,14 +84,14 @@ class EmployeesController {
    * - email
    *
    * Optional fields:
-   * - feedbackRating (number, 1-5)
+   * - feedbackRating (string enum)
    * - futureMapping (string, free-form)
    *
    * @param {import('express').Request} req Express request
    * @param {import('express').Response} res Express response
-   * @returns {import('express').Response} Response with created record or validation errors.
+   * @returns {Promise<import('express').Response>} Response with created record or validation errors.
    */
-  create(req, res) {
+  async create(req, res) {
     const payload = req.body;
 
     // Ensure JSON parsing middleware has run and that a JSON object was provided.
@@ -156,14 +156,12 @@ class EmployeesController {
         payload.monthOfLeavingCompetency ?? payload['Month of Leaving Competency']
       ),
       currentActivity: asOptionalString(payload.currentActivity ?? payload['Current Activity']),
-
-      // New optional fields
       feedbackRating,
       futureMapping: futureMapping === undefined || futureMapping === null ? undefined : futureMapping,
     };
 
     try {
-      const created = employeesStore.createEmployee(employeeRecord);
+      const created = await employeesStore.createEmployee(employeeRecord);
       return res.status(201).json({
         status: 'success',
         data: created,
@@ -175,7 +173,6 @@ class EmployeesController {
           message: err.message,
         });
       }
-      // unexpected error: propagate to global error handler
       return res.status(500).json({
         status: 'error',
         message: 'Failed to create employee record.',
@@ -185,14 +182,14 @@ class EmployeesController {
 
   /**
    * PUBLIC_INTERFACE
-   * Lists all stored employee records (in-memory).
+   * Lists all stored employee records (MongoDB).
    *
    * @param {import('express').Request} req Express request
    * @param {import('express').Response} res Express response
-   * @returns {import('express').Response} Response containing employee list.
+   * @returns {Promise<import('express').Response>} Response containing employee list.
    */
-  list(req, res) {
-    const employees = employeesStore.listEmployees();
+  async list(req, res) {
+    const employees = await employeesStore.listEmployees();
     return res.status(200).json({
       status: 'success',
       data: employees,
@@ -212,9 +209,9 @@ class EmployeesController {
    *
    * @param {import('express').Request} req Express request
    * @param {import('express').Response} res Express response
-   * @returns {import('express').Response} Updated employee or error response.
+   * @returns {Promise<import('express').Response>} Updated employee or error response.
    */
-  replace(req, res) {
+  async replace(req, res) {
     const pathEmployeeId = parseEmployeeIdFromPath(req.params.employeeId);
     if (!pathEmployeeId) {
       return res.status(400).json({
@@ -261,7 +258,7 @@ class EmployeesController {
     }
 
     // Ensure the employee exists prior to replacement.
-    const existing = employeesStore.getEmployeeById(pathEmployeeId);
+    const existing = await employeesStore.getEmployeeById(pathEmployeeId);
     if (!existing) {
       return res.status(404).json({
         status: 'error',
@@ -299,8 +296,7 @@ class EmployeesController {
       futureMapping: futureMapping === undefined || futureMapping === null ? undefined : futureMapping,
     };
 
-    const updated = employeesStore.replaceEmployee(pathEmployeeId, replacement);
-    // Should not happen because we checked existence, but keep safe.
+    const updated = await employeesStore.replaceEmployee(pathEmployeeId, replacement);
     if (!updated) {
       return res.status(404).json({
         status: 'error',
@@ -326,9 +322,9 @@ class EmployeesController {
    *
    * @param {import('express').Request} req Express request
    * @param {import('express').Response} res Express response
-   * @returns {import('express').Response} Updated employee or error response.
+   * @returns {Promise<import('express').Response>} Updated employee or error response.
    */
-  patch(req, res) {
+  async patch(req, res) {
     const pathEmployeeId = parseEmployeeIdFromPath(req.params.employeeId);
     if (!pathEmployeeId) {
       return res.status(400).json({
@@ -453,7 +449,7 @@ class EmployeesController {
       });
     }
 
-    const updated = employeesStore.patchEmployee(pathEmployeeId, patch);
+    const updated = await employeesStore.patchEmployee(pathEmployeeId, patch);
     if (!updated) {
       return res.status(404).json({
         status: 'error',
@@ -473,9 +469,9 @@ class EmployeesController {
    *
    * @param {import('express').Request} req Express request
    * @param {import('express').Response} res Express response
-   * @returns {import('express').Response} 204 on success, 404 if not found.
+   * @returns {Promise<import('express').Response>} 204 on success, 404 if not found.
    */
-  delete(req, res) {
+  async delete(req, res) {
     const pathEmployeeId = parseEmployeeIdFromPath(req.params.employeeId);
     if (!pathEmployeeId) {
       return res.status(400).json({
@@ -485,7 +481,7 @@ class EmployeesController {
       });
     }
 
-    const deleted = employeesStore.deleteEmployee(pathEmployeeId);
+    const deleted = await employeesStore.deleteEmployee(pathEmployeeId);
     if (!deleted) {
       return res.status(404).json({
         status: 'error',
