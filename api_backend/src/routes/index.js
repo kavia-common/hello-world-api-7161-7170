@@ -125,6 +125,16 @@ router.get('/hello', (req, res) => {
  *           type: string
  *           description: Current Activity.
  *           example: "Billable"
+ *         feedbackRating:
+ *           type: number
+ *           minimum: 1
+ *           maximum: 5
+ *           description: Optional feedback rating (1-5).
+ *           example: 4
+ *         futureMapping:
+ *           type: string
+ *           description: Optional free-form notes or future mapping plan.
+ *           example: "Shadow senior engineer for 2 months; move to Platform team Q3."
  *         createdAt:
  *           type: string
  *           description: Server timestamp when record was stored.

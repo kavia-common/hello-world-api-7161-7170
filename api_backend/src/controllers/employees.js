@@ -20,6 +20,37 @@ function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
+/**
+ * Parses and validates an optional feedback rating.
+ * Accepts only numbers (not numeric strings) to keep type strict and predictable.
+ *
+ * @param {unknown} value Potential feedback rating
+ * @returns {{ value?: number, error?: { field: string, message: string } }} Parsed value or error
+ */
+function parseOptionalFeedbackRating(value) {
+  if (value === undefined || value === null || value === '') return { value: undefined };
+
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return {
+      error: {
+        field: 'feedbackRating',
+        message: 'feedbackRating must be a number between 1 and 5.',
+      },
+    };
+  }
+
+  if (value < 1 || value > 5) {
+    return {
+      error: {
+        field: 'feedbackRating',
+        message: 'feedbackRating must be between 1 and 5.',
+      },
+    };
+  }
+
+  return { value };
+}
+
 class EmployeesController {
   /**
    * PUBLIC_INTERFACE
@@ -29,6 +60,10 @@ class EmployeesController {
    * - employeeId
    * - employeeName
    * - email
+   *
+   * Optional fields:
+   * - feedbackRating (number, 1-5)
+   * - futureMapping (string, free-form)
    *
    * @param {import('express').Request} req Express request
    * @param {import('express').Response} res Express response
@@ -53,6 +88,16 @@ class EmployeesController {
     if (!isNonEmptyString(employeeId)) errors.push({ field: 'employeeId', message: 'employeeId is required.' });
     if (!isNonEmptyString(employeeName)) errors.push({ field: 'employeeName', message: 'employeeName is required.' });
     if (!isValidEmail(email)) errors.push({ field: 'email', message: 'Valid email is required.' });
+
+    const { value: feedbackRating, error: feedbackRatingError } = parseOptionalFeedbackRating(
+      payload.feedbackRating ?? payload['Feedback Rating']
+    );
+    if (feedbackRatingError) errors.push(feedbackRatingError);
+
+    const futureMapping = payload.futureMapping ?? payload['Future Mapping'];
+    if (futureMapping !== undefined && futureMapping !== null && typeof futureMapping !== 'string') {
+      errors.push({ field: 'futureMapping', message: 'futureMapping must be a string.' });
+    }
 
     if (errors.length > 0) {
       return res.status(400).json({
@@ -89,6 +134,10 @@ class EmployeesController {
         payload.monthOfLeavingCompetency ?? payload['Month of Leaving Competency']
       ),
       currentActivity: asOptionalString(payload.currentActivity ?? payload['Current Activity']),
+
+      // New optional fields
+      feedbackRating,
+      futureMapping: futureMapping === undefined || futureMapping === null ? undefined : futureMapping,
     };
 
     try {
