@@ -4,7 +4,6 @@ const employeesController = require('../controllers/employees');
 const skillFactoriesController = require('../controllers/skillFactories');
 const learningPathsController = require('../controllers/learningPaths');
 const assessmentsController = require('../controllers/assessments');
-const feedbackController = require('../controllers/feedback');
 const metricsController = require('../controllers/metrics');
 
 const router = express.Router();
@@ -22,8 +21,6 @@ const router = express.Router();
  *     description: Learning Path management (in-memory)
  *   - name: Assessments
  *     description: Assessments management (in-memory)
- *   - name: Feedback
- *     description: Feedback capturing (in-memory)
  *   - name: Metrics
  *     description: Aggregated success metrics across Learning Paths, Skill Factories, and Employees (computed in-memory)
  */
@@ -396,57 +393,6 @@ router.get('/hello', (req, res) => {
  *           type: string
  *           description: Server timestamp when record was last updated.
  *           example: "2026-01-01T00:00:00.000Z"
- *     Feedback:
- *       type: object
- *       required:
- *         - feedbackId
- *         - assessmentId
- *         - employeeId
- *         - rating
- *       properties:
- *         feedbackId:
- *           type: string
- *           description: Unique feedback identifier.
- *           example: "F-001"
- *         assessmentId:
- *           type: string
- *           description: Assessment ID (reference; not enforced).
- *           example: "A-001"
- *         employeeId:
- *           type: string
- *           description: Employee ID submitting the feedback.
- *           example: "E12345"
- *         rating:
- *           type: string
- *           description: Feedback rating.
- *           enum: ["Needs Improvement", "Average", "Good", "Very Good", "Excellent"]
- *           example: "Very Good"
- *         comments:
- *           type: string
- *           description: Optional comments.
- *           example: "Strong fundamentals; work on testing depth."
- *         marks:
- *           oneOf:
- *             - type: number
- *             - type: string
- *           description: Optional marks/score associated with this feedback (number or numeric string in requests; stored as number).
- *           example: 4.5
- *         basisOfScoring:
- *           type: string
- *           description: Optional basis of scoring (e.g., rubric/criteria).
- *           example: "Score averaged across communication and technical depth."
- *         strength:
- *           type: string
- *           description: Optional strengths noted in feedback.
- *           example: "Clear communication and strong ownership."
- *         areasOfImprovement:
- *           type: string
- *           description: Optional areas of improvement noted in feedback.
- *           example: "Proactively document decisions and tradeoffs."
- *         submittedAt:
- *           type: string
- *           description: Server timestamp when feedback was submitted.
- *           example: "2026-01-01T00:00:00.000Z"
  *     MetricsSummaryResponse:
  *       type: object
  *       properties:
@@ -575,21 +521,6 @@ router.get('/hello', (req, res) => {
  *                     - type: number
  *                     - type: "null"
  *                   example: 82.5
- *             feedback:
- *               type: object
- *               properties:
- *                 totals:
- *                   type: integer
- *                   example: 5
- *                 withMarksCount:
- *                   type: integer
- *                   example: 4
- *                 averageMarks:
- *                   nullable: true
- *                   oneOf:
- *                     - type: number
- *                     - type: "null"
- *                   example: 4.2
  *     LearningPathMetricsItem:
  *       type: object
  *       properties:
@@ -1325,189 +1256,13 @@ router.delete('/assessments/:assessmentId', (req, res) => assessmentsController.
 
 /**
  * @swagger
- * /feedback:
- *   post:
- *     tags: [Feedback]
- *     summary: Create a feedback record
- *     description: Creates and stores a feedback record (in-memory). Requires feedbackId, assessmentId, employeeId, and rating.
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/Feedback'
- *     responses:
- *       201:
- *         description: Feedback created.
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: success
- *                 data:
- *                   $ref: '#/components/schemas/Feedback'
- *       400:
- *         description: Invalid request or validation failure.
- *       409:
- *         description: Duplicate feedbackId.
- *   get:
- *     tags: [Feedback]
- *     summary: List feedback records
- *     description: Lists all stored feedback records (in-memory).
- *     responses:
- *       200:
- *         description: Feedback list.
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: success
- *                 data:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/Feedback'
- *                 count:
- *                   type: integer
- *                   example: 1
- */
-router.post('/feedback', (req, res) => feedbackController.create(req, res));
-router.get('/feedback', (req, res) => feedbackController.list(req, res));
-
-/**
- * @swagger
- * /feedback/{feedbackId}:
- *   get:
- *     tags: [Feedback]
- *     summary: Get a feedback record
- *     description: Gets a feedback record by feedbackId (in-memory).
- *     parameters:
- *       - in: path
- *         name: feedbackId
- *         required: true
- *         schema:
- *           type: string
- *         description: Feedback ID to fetch.
- *     responses:
- *       200:
- *         description: Feedback record.
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: success
- *                 data:
- *                   $ref: '#/components/schemas/Feedback'
- *       404:
- *         description: Feedback not found.
- *   put:
- *     tags: [Feedback]
- *     summary: Replace a feedback record
- *     description: Replaces the full feedback record for the given feedbackId (in-memory). assessmentId, employeeId, and rating are required. If feedbackId is present in the body, it must match the path parameter.
- *     parameters:
- *       - in: path
- *         name: feedbackId
- *         required: true
- *         schema:
- *           type: string
- *         description: Feedback ID to replace.
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/Feedback'
- *     responses:
- *       200:
- *         description: Feedback updated.
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: success
- *                 data:
- *                   $ref: '#/components/schemas/Feedback'
- *       400:
- *         description: Invalid request or validation failure.
- *       404:
- *         description: Feedback not found.
- *   patch:
- *     tags: [Feedback]
- *     summary: Partially update a feedback record
- *     description: Partially updates fields for the given feedbackId (in-memory). Validates updated fields (including rating enum). If feedbackId is present in the body, it must match the path parameter.
- *     parameters:
- *       - in: path
- *         name: feedbackId
- *         required: true
- *         schema:
- *           type: string
- *         description: Feedback ID to patch.
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             description: Partial feedback fields to update.
- *     responses:
- *       200:
- *         description: Feedback updated.
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: success
- *                 data:
- *                   $ref: '#/components/schemas/Feedback'
- *       400:
- *         description: Invalid request or validation failure.
- *       404:
- *         description: Feedback not found.
- *   delete:
- *     tags: [Feedback]
- *     summary: Delete a feedback record
- *     description: Deletes the feedback record for the given feedbackId (in-memory).
- *     parameters:
- *       - in: path
- *         name: feedbackId
- *         required: true
- *         schema:
- *           type: string
- *         description: Feedback ID to delete.
- *     responses:
- *       204:
- *         description: Feedback deleted.
- *       404:
- *         description: Feedback not found.
- */
-router.get('/feedback/:feedbackId', (req, res) => feedbackController.getById(req, res));
-router.put('/feedback/:feedbackId', (req, res) => feedbackController.replace(req, res));
-router.patch('/feedback/:feedbackId', (req, res) => feedbackController.patch(req, res));
-router.delete('/feedback/:feedbackId', (req, res) => feedbackController.delete(req, res));
-
-/**
- * @swagger
  * /metrics/summary:
  *   get:
  *     tags: [Metrics]
  *     summary: Get aggregated success metrics summary
  *     description: |
  *       Computes aggregated success metrics on each request from in-memory stores (no persistence).
- *       Includes Learning Paths rollups, Skill Factories rollups, Employees billed counts (inferred safely), and Assessments/Feedback counts with optional average marks.
+ *       Includes Learning Paths rollups, Skill Factories rollups, and Employees billed counts (inferred safely).
  *     responses:
  *       200:
  *         description: Metrics summary.

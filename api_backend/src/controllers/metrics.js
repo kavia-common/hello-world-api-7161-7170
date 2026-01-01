@@ -4,7 +4,6 @@ const employeesStore = require('../services/employeesStore');
 const skillFactoriesStore = require('../services/skillFactoriesStore');
 const learningPathsStore = require('../services/learningPathsStore');
 const assessmentsStore = require('../services/assessmentsStore');
-const feedbackStore = require('../services/feedbackStore');
 
 function toFiniteNumber(value) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
@@ -151,7 +150,7 @@ function computeSkillFactoryHighlights(skillFactories) {
 }
 
 /**
- * Computes rating marks average from a list of items with optional numeric "marks".
+ * Computes marks average from a list of items with optional numeric "marks".
  *
  * @param {any[]} items
  * @returns {{ count: number, withMarksCount: number, averageMarks: number|null }}
@@ -182,7 +181,7 @@ class MetricsController {
    * - learningPaths
    * - skillFactories
    * - employees (including billed counts inferred safely)
-   * - assessments & feedback (counts + optional average marks)
+   * - assessments (counts + optional average marks)
    *
    * No data is persisted; metrics are computed per-request.
    *
@@ -191,12 +190,11 @@ class MetricsController {
    * @returns {Promise<import('express').Response>} 200 response with summary payload.
    */
   async summary(req, res) {
-    const [employees, skillFactories, learningPaths, assessments, feedback] = await Promise.all([
+    const [employees, skillFactories, learningPaths, assessments] = await Promise.all([
       employeesStore.listEmployees(),
       skillFactoriesStore.listSkillFactories(),
       learningPathsStore.listLearningPaths(),
       assessmentsStore.listAssessments(),
-      feedbackStore.listFeedback(),
     ]);
 
     const learningHighlights = computeLearningPathHighlights(learningPaths);
@@ -261,7 +259,6 @@ class MetricsController {
     const billingRate = totalEmployees > 0 ? billedCount / totalEmployees : 0;
 
     const assessmentsMarks = computeMarksAverage(assessments);
-    const feedbackMarks = computeMarksAverage(feedback);
 
     return res.status(200).json({
       status: 'success',
@@ -278,11 +275,6 @@ class MetricsController {
           totals: assessmentsMarks.count,
           withMarksCount: assessmentsMarks.withMarksCount,
           averageMarks: assessmentsMarks.averageMarks,
-        },
-        feedback: {
-          totals: feedbackMarks.count,
-          withMarksCount: feedbackMarks.withMarksCount,
-          averageMarks: feedbackMarks.averageMarks,
         },
       },
     });
