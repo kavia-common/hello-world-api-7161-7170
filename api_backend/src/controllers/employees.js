@@ -22,33 +22,36 @@ function isValidEmail(value) {
 
 /**
  * Parses and validates an optional feedback rating.
- * Accepts only numbers (not numeric strings) to keep type strict and predictable.
+ * Accepts only one of the allowed string values.
  *
  * @param {unknown} value Potential feedback rating
- * @returns {{ value?: number, error?: { field: string, message: string } }} Parsed value or error
+ * @returns {{ value?: string, error?: { field: string, message: string } }} Parsed value or error
  */
 function parseOptionalFeedbackRating(value) {
+  const allowedValues = ['Needs Improvement', 'Average', 'Good', 'Very Good', 'Excellent'];
+
   if (value === undefined || value === null || value === '') return { value: undefined };
 
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
+  if (typeof value !== 'string') {
     return {
       error: {
         field: 'feedbackRating',
-        message: 'feedbackRating must be a number between 1 and 5.',
+        message: `feedbackRating must be a string and one of: ${allowedValues.join(', ')}.`,
       },
     };
   }
 
-  if (value < 1 || value > 5) {
+  const trimmed = value.trim();
+  if (!allowedValues.includes(trimmed)) {
     return {
       error: {
         field: 'feedbackRating',
-        message: 'feedbackRating must be between 1 and 5.',
+        message: `feedbackRating must be one of: ${allowedValues.join(', ')}.`,
       },
     };
   }
 
-  return { value };
+  return { value: trimmed };
 }
 
 class EmployeesController {

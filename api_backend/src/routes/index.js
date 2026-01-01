@@ -126,11 +126,10 @@ router.get('/hello', (req, res) => {
  *           description: Current Activity.
  *           example: "Billable"
  *         feedbackRating:
- *           type: number
- *           minimum: 1
- *           maximum: 5
- *           description: Optional feedback rating (1-5).
- *           example: 4
+ *           type: string
+ *           description: Optional feedback rating.
+ *           enum: ["Needs Improvement", "Average", "Good", "Very Good", "Excellent"]
+ *           example: "Very Good"
  *         futureMapping:
  *           type: string
  *           description: Optional free-form notes or future mapping plan.
