@@ -115,6 +115,67 @@ router.post('/signup', (req, res) => authController.signup(req, res));
 
 /**
  * @swagger
+ * /login:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Log in and receive a JWT
+ *     description: |
+ *       Validates {username, password} against the in-memory users store.
+ *       On success returns a JWT token with claims { sub: username, role } and a minimal user summary.
+ *
+ *       Error cases:
+ *       - 400: username or password missing
+ *       - 401: invalid credentials
+ *
+ *       Notes:
+ *       - JWT is signed using server env var JWT_SECRET (required).
+ *       - Token expiry uses JWT_EXPIRES_IN (optional, default: "1h").
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [username, password]
+ *             properties:
+ *               username:
+ *                 type: string
+ *                 description: Existing username (case-sensitive).
+ *                 example: "jane.doe"
+ *               password:
+ *                 type: string
+ *                 description: Plain-text password.
+ *                 example: "S3cretPass!"
+ *     responses:
+ *       200:
+ *         description: Login successful.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 token:
+ *                   type: string
+ *                   description: Signed JWT token with claims {sub, role}.
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     username:
+ *                       type: string
+ *                       example: "jane.doe"
+ *                     role:
+ *                       type: string
+ *                       enum: [admin, manager, user]
+ *                       example: "user"
+ *       400:
+ *         description: Missing fields.
+ *       401:
+ *         description: Invalid credentials.
+ */
+router.post('/login', (req, res) => authController.login(req, res));
+
+/**
+ * @swagger
  * components:
  *   schemas:
  *     Employee:
