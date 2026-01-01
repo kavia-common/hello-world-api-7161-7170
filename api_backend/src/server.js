@@ -1,7 +1,6 @@
 'use strict';
 
 const app = require('./app');
-const { startBackupScheduler, stopBackupScheduler } = require('./services/backupScheduler');
 
 const PORT = Number(process.env.PORT) || 3001;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -19,9 +18,6 @@ const HOST = process.env.HOST || '0.0.0.0';
  * @returns {Promise<import('http').Server>} Running HTTP server.
  */
 async function start() {
-  // Start scheduler (if enabled) once the process boots.
-  startBackupScheduler();
-
   const server = app.listen(PORT, HOST, () => {
     console.log(`Server running at http://${HOST}:${PORT}`);
   });
@@ -29,9 +25,6 @@ async function start() {
   const shutdown = async (signal) => {
     try {
       console.log(`${signal} signal received: closing HTTP server`);
-
-      // Stop scheduler first to avoid new work during shutdown.
-      stopBackupScheduler();
 
       await new Promise((resolve) => server.close(resolve));
       console.log('HTTP server closed');
