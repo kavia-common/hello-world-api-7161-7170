@@ -17,7 +17,6 @@ Optional variables:
 
 - `PORT`: defaults to `3001`
 - `HOST`: defaults to `0.0.0.0`
-- `BACKUP_INTERVAL_MS`: interval for periodic in-memory backups; defaults to `21600000` (6 hours). The scheduler uses internal backup logic (no HTTP calls).
 
 ## Running the backend
 
@@ -161,18 +160,13 @@ Expected response:
 
 - Status `204` on success, or `404` if not found.
 
-## Backups (in-memory) and scheduler
+## Backups (in-memory)
 
 Backups are snapshots of the in-memory stores. They reset on server restart.
 
 - `POST /backup` (protected: admin/manager): creates a backup snapshot
 - `GET /backup` (public): lists backups
 - `GET /backup/:id` (public): fetches a backup snapshot
-- `GET /backup/jobs` (protected: admin/manager): lists recent scheduler runs and their status
-
-Periodic backups run automatically via a lightweight interval scheduler. Configure with:
-
-- `BACKUP_INTERVAL_MS` (optional): interval in milliseconds; default is 6 hours.
 
 ## API documentation (Swagger UI)
 

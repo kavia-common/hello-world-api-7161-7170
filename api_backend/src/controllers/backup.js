@@ -1,7 +1,6 @@
 'use strict';
 
 const backupsStore = require('../services/backupsStore');
-const backupJobsStore = require('../services/backupJobsStore');
 
 const employeesStore = require('../services/employeesStore');
 const skillFactoriesStore = require('../services/skillFactoriesStore');
@@ -50,7 +49,6 @@ async function computeMetricsSnapshot() {
  *
  * This is the single internal function used by:
  * - POST /backup
- * - the periodic scheduler
  *
  * @param {{ user?: any, trigger?: string }} options
  * @returns {Promise<{ id: string, timestamp: string }>} Stored backup metadata
@@ -164,30 +162,10 @@ async function getBackupById(req, res) {
   });
 }
 
-/**
- * PUBLIC_INTERFACE
- * Lists recent backup scheduler runs and their statuses.
- *
- * Protected by route-level middleware (admin/manager) for operational visibility.
- *
- * @param {import('express').Request} _req Express Request
- * @param {import('express').Response} res Express Response
- * @returns {Promise<void>} JSON response
- */
-async function listBackupJobs(_req, res) {
-  const runs = backupJobsStore.listRuns();
-  return res.status(200).json({
-    status: 'success',
-    data: runs,
-    count: runs.length,
-  });
-}
-
 module.exports = {
   runBackupInternal,
   createBackup,
   listBackups,
   getBackupById,
-  listBackupJobs,
 };
 

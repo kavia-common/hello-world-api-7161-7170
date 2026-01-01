@@ -199,39 +199,12 @@ router.get('/metrics/skill-factories', metricsController.getSkillFactoriesMetric
  *           type: object
  *         metadata:
  *           type: object
- *     BackupJobRun:
- *       type: object
- *       properties:
- *         id:
- *           type: string
- *           description: Unique job run id
- *         startedAt:
- *           type: string
- *           description: ISO timestamp
- *         finishedAt:
- *           type: string
- *           description: ISO timestamp
- *         status:
- *           type: string
- *           enum: [running, success, error]
- *         trigger:
- *           type: string
- *           description: What triggered the run (e.g. scheduler)
- *         durationMs:
- *           type: number
- *         backup:
- *           type: object
- *           description: Backup metadata produced by the run (on success)
- *         error:
- *           type: string
- *           description: Error message (on failure)
  */
 
 /**
  * Backups
  * - POST /backup is protected (admin/manager)
  * - GET /backup and GET /backup/:id are public reads
- * - GET /backup/jobs is protected (admin/manager) to inspect recent scheduler runs
  */
 
 /**
@@ -288,24 +261,5 @@ router.get('/backup', backupController.listBackups);
  *         description: Not found
  */
 router.get('/backup/:id', backupController.getBackupById);
-
-/**
- * @swagger
- * /backup/jobs:
- *   get:
- *     summary: List recent backup scheduler runs
- *     description: Lists recent periodic backup runs (start/end/status/error). Protected for operational visibility.
- *     tags: [Backups]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Job run list
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Forbidden
- */
-router.get('/backup/jobs', verifyJwt, requireRole(['admin', 'manager']), backupController.listBackupJobs);
 
 module.exports = router;
