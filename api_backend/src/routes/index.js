@@ -5,6 +5,7 @@ const skillFactoriesController = require('../controllers/skillFactories');
 const learningPathsController = require('../controllers/learningPaths');
 const assessmentsController = require('../controllers/assessments');
 const metricsController = require('../controllers/metrics');
+const authController = require('../controllers/auth');
 
 const router = express.Router();
 
@@ -23,6 +24,8 @@ const router = express.Router();
  *     description: Assessments management (in-memory)
  *   - name: Metrics
  *     description: Aggregated success metrics across Learning Paths, Skill Factories, and Employees (computed in-memory)
+ *   - name: Auth
+ *     description: User signup/authentication endpoints (in-memory)
  */
 
 /**
@@ -44,6 +47,71 @@ const router = express.Router();
 router.get('/hello', (req, res) => {
   return res.status(200).send('Hello World');
 });
+
+/**
+ * @swagger
+ * /signup:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Sign up a new user
+ *     description: |
+ *       Creates a new user (in-memory) by validating {username, password, role},
+ *       hashing the password with bcrypt, and storing as passwordHash.
+ *
+ *       Notes:
+ *       - Duplicate usernames are rejected (409).
+ *       - The response never returns password or passwordHash.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [username, password, role]
+ *             properties:
+ *               username:
+ *                 type: string
+ *                 description: Unique username (case-sensitive).
+ *                 example: "jane.doe"
+ *               password:
+ *                 type: string
+ *                 description: Plain-text password; will be bcrypt-hashed before storage.
+ *                 example: "S3cretPass!"
+ *               role:
+ *                 type: string
+ *                 description: Role for the user.
+ *                 enum: [admin, manager, user]
+ *                 example: "user"
+ *     responses:
+ *       201:
+ *         description: User created.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     username:
+ *                       type: string
+ *                       example: "jane.doe"
+ *                     role:
+ *                       type: string
+ *                       enum: [admin, manager, user]
+ *                       example: "user"
+ *                     createdAt:
+ *                       type: string
+ *                       example: "2026-01-01T00:00:00.000Z"
+ *       400:
+ *         description: Invalid request or validation failure.
+ *       409:
+ *         description: Duplicate username.
+ */
+router.post('/signup', (req, res) => authController.signup(req, res));
 
 /**
  * @swagger
