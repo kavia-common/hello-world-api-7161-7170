@@ -68,17 +68,65 @@ function parseOptionalDateString(value) {
   return { value: new Date(parsed).toISOString() };
 }
 
+/**
+ * Parses and validates mentors for SkillFactory create/replace/patch.
+ *
+ * Expected shape:
+ * mentors: [{ mentorId, mentorName, mentorEmail, isInPool }]
+ *
+ * Backward compatibility:
+ * - `mentorNames` is rejected with a clear error message (clients must migrate).
+ *
+ * @param {unknown} value
+ * @returns {{ value?: Array<{ mentorId: string, mentorName: string, mentorEmail: string, isInPool: boolean }>, error?: string, errors?: Array<{ field: string, message: string }> }}
+ */
 function parseMentorsArray(value) {
   if (value === undefined || value === null) return { value: undefined };
-  if (!Array.isArray(value)) return { error: 'mentorNames must be an array of non-empty strings.' };
+  if (!Array.isArray(value)) return { error: 'mentors must be an array of objects.' };
 
-  const mentors = [];
-  for (let i = 0; i < value.length; i += 1) {
-    const v = value[i];
-    if (!isNonEmptyString(v)) return { error: 'mentorNames must contain only non-empty strings.' };
-    mentors.push(v.trim());
-  }
-  return { value: mentors };
+  const errors = [];
+  /** @type {Array<{ mentorId: string, mentorName: string, mentorEmail: string, isInPool: boolean }>} */
+  const normalized = [];
+
+  value.forEach((item, idx) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      errors.push({ field: `mentors[${idx}]`, message: 'Each mentor must be an object.' });
+      return;
+    }
+
+    const mentorId = asOptionalString(item.mentorId);
+    const mentorName = asOptionalString(item.mentorName);
+    const mentorEmail = asOptionalString(item.mentorEmail);
+    const isInPool = item.isInPool;
+
+    if (!isNonEmptyString(mentorId)) {
+      errors.push({ field: `mentors[${idx}].mentorId`, message: 'mentorId is required and must be a non-empty string.' });
+    }
+    if (!isNonEmptyString(mentorName)) {
+      errors.push({
+        field: `mentors[${idx}].mentorName`,
+        message: 'mentorName is required and must be a non-empty string.',
+      });
+    }
+    if (!isValidEmail(mentorEmail)) {
+      errors.push({ field: `mentors[${idx}].mentorEmail`, message: 'mentorEmail is required and must be a valid email.' });
+    }
+    if (!isBoolean(isInPool)) {
+      errors.push({ field: `mentors[${idx}].isInPool`, message: 'isInPool is required and must be a boolean.' });
+    }
+
+    if (isNonEmptyString(mentorId) && isNonEmptyString(mentorName) && isValidEmail(mentorEmail) && isBoolean(isInPool)) {
+      normalized.push({
+        mentorId: mentorId.trim(),
+        mentorName: mentorName.trim(),
+        mentorEmail: mentorEmail.trim(),
+        isInPool,
+      });
+    }
+  });
+
+  if (errors.length > 0) return { errors };
+  return { value: normalized };
 }
 
 /**
@@ -152,11 +200,7 @@ function parseEmployeesArray(value, { required }) {
       errors.push({ field: `employees[${idx}].endDate`, message: endDateParsed.error });
     }
 
-    if (
-      startDateParsed.value &&
-      endDateParsed.value &&
-      Date.parse(startDateParsed.value) > Date.parse(endDateParsed.value)
-    ) {
+    if (startDateParsed.value && endDateParsed.value && Date.parse(startDateParsed.value) > Date.parse(endDateParsed.value)) {
       errors.push({ field: `employees[${idx}].endDate`, message: 'endDate must be >= startDate.' });
     }
 
@@ -205,10 +249,7 @@ class SkillFactoriesController {
    * - employees (array of employee objects; see validation rules below)
    *
    * Optional fields:
-   * - mentorNames (string[])
-   *
-   * NOTE: The following fields are now part of EACH employees[] entry and are NOT allowed at the top-level:
-   * - initialRating, currentRating, startDate, endDate, isInPool
+   * - mentors (array of mentor objects)
    *
    * @param {import('express').Request} req Express request
    * @param {import('express').Response} res Express response
@@ -233,8 +274,18 @@ class SkillFactoriesController {
       errors.push({ field: 'skillFactoryName', message: 'skillFactoryName is required.' });
     }
 
-    const { value: mentorNames, error: mentorNamesError } = parseMentorsArray(payload.mentorNames ?? payload.mentors);
-    if (mentorNamesError) errors.push({ field: 'mentorNames', message: mentorNamesError });
+    // Explicitly reject deprecated mentorNames to avoid silent misinterpretation.
+    if (payload.mentorNames !== undefined) {
+      errors.push({
+        field: 'mentorNames',
+        message:
+          'mentorNames is deprecated. Use mentors (array of { mentorId, mentorName, mentorEmail, isInPool }) instead.',
+      });
+    }
+
+    const mentorsParsed = parseMentorsArray(payload.mentors);
+    if (mentorsParsed.error) errors.push({ field: 'mentors', message: mentorsParsed.error });
+    if (mentorsParsed.errors) errors.push(...mentorsParsed.errors);
 
     const employeesParsed = parseEmployeesArray(payload.employees, { required: true });
     if (employeesParsed.error) errors.push({ field: 'employees', message: employeesParsed.error });
@@ -259,7 +310,7 @@ class SkillFactoriesController {
     const record = {
       skillFactoryId: skillFactoryId.trim(),
       skillFactoryName: skillFactoryName.trim(),
-      mentorNames,
+      mentors: mentorsParsed.value,
       employees: employeesParsed.value,
     };
 
@@ -342,8 +393,6 @@ class SkillFactoriesController {
    *
    * If skillFactoryId is present in the body, it must match the path parameter.
    *
-   * NOTE: rating/date/pool fields are part of employees[] items (not top-level).
-   *
    * @param {import('express').Request} req Express request
    * @param {import('express').Response} res Express response
    * @returns {Promise<import('express').Response>} Updated record or error response.
@@ -374,8 +423,17 @@ class SkillFactoriesController {
       errors.push({ field: 'skillFactoryName', message: 'skillFactoryName is required.' });
     }
 
-    const { value: mentorNames, error: mentorNamesError } = parseMentorsArray(payload.mentorNames ?? payload.mentors);
-    if (mentorNamesError) errors.push({ field: 'mentorNames', message: mentorNamesError });
+    if (payload.mentorNames !== undefined) {
+      errors.push({
+        field: 'mentorNames',
+        message:
+          'mentorNames is deprecated. Use mentors (array of { mentorId, mentorName, mentorEmail, isInPool }) instead.',
+      });
+    }
+
+    const mentorsParsed = parseMentorsArray(payload.mentors);
+    if (mentorsParsed.error) errors.push({ field: 'mentors', message: mentorsParsed.error });
+    if (mentorsParsed.errors) errors.push(...mentorsParsed.errors);
 
     const employeesParsed = parseEmployeesArray(payload.employees, { required: true });
     if (employeesParsed.error) errors.push({ field: 'employees', message: employeesParsed.error });
@@ -407,7 +465,7 @@ class SkillFactoriesController {
     const replacement = {
       skillFactoryId: pathId,
       skillFactoryName: skillFactoryName.trim(),
-      mentorNames,
+      mentors: mentorsParsed.value,
       employees: employeesParsed.value,
     };
 
@@ -434,10 +492,8 @@ class SkillFactoriesController {
    *
    * Allowed patch fields:
    * - skillFactoryName
-   * - mentorNames
+   * - mentors
    * - employees
-   *
-   * NOTE: rating/date/pool fields are part of employees[] items (not top-level).
    *
    * @param {import('express').Request} req Express request
    * @param {import('express').Response} res Express response
@@ -475,10 +531,19 @@ class SkillFactoriesController {
       }
     }
 
-    if (payload.mentorNames !== undefined || payload.mentors !== undefined) {
-      const { value: mentorNames, error: mentorNamesError } = parseMentorsArray(payload.mentorNames ?? payload.mentors);
-      if (mentorNamesError) errors.push({ field: 'mentorNames', message: mentorNamesError });
-      else patch.mentorNames = mentorNames;
+    if (payload.mentorNames !== undefined) {
+      errors.push({
+        field: 'mentorNames',
+        message:
+          'mentorNames is deprecated. Use mentors (array of { mentorId, mentorName, mentorEmail, isInPool }) instead.',
+      });
+    }
+
+    if (payload.mentors !== undefined) {
+      const mentorsParsed = parseMentorsArray(payload.mentors);
+      if (mentorsParsed.error) errors.push({ field: 'mentors', message: mentorsParsed.error });
+      if (mentorsParsed.errors) errors.push(...mentorsParsed.errors);
+      if (mentorsParsed.value) patch.mentors = mentorsParsed.value;
     }
 
     if (payload.employees !== undefined) {

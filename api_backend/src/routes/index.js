@@ -185,6 +185,31 @@ router.get('/hello', (req, res) => {
  *           type: boolean
  *           description: Whether the employee is in pool.
  *           example: true
+ *     Mentor:
+ *       type: object
+ *       required:
+ *         - mentorId
+ *         - mentorName
+ *         - mentorEmail
+ *         - isInPool
+ *       properties:
+ *         mentorId:
+ *           type: string
+ *           description: Unique mentor ID.
+ *           example: "M-001"
+ *         mentorName:
+ *           type: string
+ *           description: Mentor name.
+ *           example: "Mentor A"
+ *         mentorEmail:
+ *           type: string
+ *           format: email
+ *           description: Mentor email.
+ *           example: "mentor.a@example.com"
+ *         isInPool:
+ *           type: boolean
+ *           description: Whether the mentor is in pool.
+ *           example: true
  *     SkillFactory:
  *       type: object
  *       required:
@@ -199,12 +224,20 @@ router.get('/hello', (req, res) => {
  *           type: string
  *           description: Skill Factory Name.
  *           example: "Platform Engineering"
- *         mentorNames:
+ *         mentors:
  *           type: array
- *           description: Mentor names.
+ *           description: Mentors assigned to this skill factory.
  *           items:
- *             type: string
- *           example: ["Mentor A", "Mentor B"]
+ *             $ref: '#/components/schemas/Mentor'
+ *           example:
+ *             - mentorId: "M-001"
+ *               mentorName: "Mentor A"
+ *               mentorEmail: "mentor.a@example.com"
+ *               isInPool: true
+ *             - mentorId: "M-002"
+ *               mentorName: "Mentor B"
+ *               mentorEmail: "mentor.b@example.com"
+ *               isInPool: false
  *         employees:
  *           type: array
  *           description: Employees in this skill factory (each item includes rating/date/pool fields).
