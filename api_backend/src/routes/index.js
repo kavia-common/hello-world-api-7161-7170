@@ -3,6 +3,8 @@ const express = require('express');
 const employeesController = require('../controllers/employees');
 const skillFactoriesController = require('../controllers/skillFactories');
 const learningPathsController = require('../controllers/learningPaths');
+const assessmentsController = require('../controllers/assessments');
+const feedbackController = require('../controllers/feedback');
 
 const router = express.Router();
 
@@ -17,6 +19,10 @@ const router = express.Router();
  *     description: Skill Factory management (in-memory)
  *   - name: LearningPaths
  *     description: Learning Path management (in-memory)
+ *   - name: Assessments
+ *     description: Assessments management (in-memory)
+ *   - name: Feedback
+ *     description: Feedback capturing (in-memory)
  */
 
 /**
@@ -309,6 +315,98 @@ router.get('/hello', (req, res) => {
  *         updatedAt:
  *           type: string
  *           description: Server timestamp when record was last updated.
+ *           example: "2026-01-01T00:00:00.000Z"
+ *     AssessmentAssignee:
+ *       type: object
+ *       required:
+ *         - employeeId
+ *         - employeeName
+ *         - email
+ *       properties:
+ *         employeeId:
+ *           type: string
+ *           description: Employee ID.
+ *           example: "E12345"
+ *         employeeName:
+ *           type: string
+ *           description: Employee name.
+ *           example: "Jane Doe"
+ *         email:
+ *           type: string
+ *           description: Employee email.
+ *           example: "jane.doe@example.com"
+ *     Assessment:
+ *       type: object
+ *       required:
+ *         - assessmentId
+ *         - title
+ *       properties:
+ *         assessmentId:
+ *           type: string
+ *           description: Unique assessment identifier.
+ *           example: "A-001"
+ *         title:
+ *           type: string
+ *           description: Assessment title.
+ *           example: "Quarterly Technical Assessment"
+ *         description:
+ *           type: string
+ *           description: Optional description.
+ *           example: "Assessment for backend engineering fundamentals."
+ *         assignedTo:
+ *           type: array
+ *           description: List of employees assigned to the assessment.
+ *           items:
+ *             $ref: '#/components/schemas/AssessmentAssignee'
+ *         dueDate:
+ *           type: string
+ *           description: Optional due date (ISO date string).
+ *           example: "2026-02-01T00:00:00.000Z"
+ *         status:
+ *           type: string
+ *           description: Assessment status.
+ *           enum: ["Draft", "Assigned", "In Progress", "Completed"]
+ *           example: "Assigned"
+ *         createdAt:
+ *           type: string
+ *           description: Server timestamp when record was stored.
+ *           example: "2026-01-01T00:00:00.000Z"
+ *         updatedAt:
+ *           type: string
+ *           description: Server timestamp when record was last updated.
+ *           example: "2026-01-01T00:00:00.000Z"
+ *     Feedback:
+ *       type: object
+ *       required:
+ *         - feedbackId
+ *         - assessmentId
+ *         - employeeId
+ *         - rating
+ *       properties:
+ *         feedbackId:
+ *           type: string
+ *           description: Unique feedback identifier.
+ *           example: "F-001"
+ *         assessmentId:
+ *           type: string
+ *           description: Assessment ID (reference; not enforced).
+ *           example: "A-001"
+ *         employeeId:
+ *           type: string
+ *           description: Employee ID submitting the feedback.
+ *           example: "E12345"
+ *         rating:
+ *           type: string
+ *           description: Feedback rating.
+ *           enum: ["Needs Improvement", "Average", "Good", "Very Good", "Excellent"]
+ *           example: "Very Good"
+ *         comments:
+ *           type: string
+ *           description: Optional comments.
+ *           example: "Strong fundamentals; work on testing depth."
+ *         submittedAt:
+ *           type: string
+ *           description: Server timestamp when feedback was submitted.
  *           example: "2026-01-01T00:00:00.000Z"
  */
 
@@ -800,5 +898,357 @@ router.get('/learningpaths', (req, res) => learningPathsController.list(req, res
 router.put('/learningpaths/:learningPathName', (req, res) => learningPathsController.replace(req, res));
 router.patch('/learningpaths/:learningPathName', (req, res) => learningPathsController.patch(req, res));
 router.delete('/learningpaths/:learningPathName', (req, res) => learningPathsController.delete(req, res));
+
+/**
+ * @swagger
+ * /assessments:
+ *   post:
+ *     tags: [Assessments]
+ *     summary: Create an assessment record
+ *     description: Creates and stores an assessment record (in-memory). Requires assessmentId and title.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/Assessment'
+ *     responses:
+ *       201:
+ *         description: Assessment created.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   $ref: '#/components/schemas/Assessment'
+ *       400:
+ *         description: Invalid request or validation failure.
+ *       409:
+ *         description: Duplicate assessmentId.
+ *   get:
+ *     tags: [Assessments]
+ *     summary: List assessment records
+ *     description: Lists all stored assessment records (in-memory).
+ *     responses:
+ *       200:
+ *         description: Assessments list.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Assessment'
+ *                 count:
+ *                   type: integer
+ *                   example: 1
+ */
+router.post('/assessments', (req, res) => assessmentsController.create(req, res));
+router.get('/assessments', (req, res) => assessmentsController.list(req, res));
+
+/**
+ * @swagger
+ * /assessments/{assessmentId}:
+ *   get:
+ *     tags: [Assessments]
+ *     summary: Get an assessment record
+ *     description: Gets an assessment record by assessmentId (in-memory).
+ *     parameters:
+ *       - in: path
+ *         name: assessmentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Assessment ID to fetch.
+ *     responses:
+ *       200:
+ *         description: Assessment record.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   $ref: '#/components/schemas/Assessment'
+ *       404:
+ *         description: Assessment not found.
+ *   put:
+ *     tags: [Assessments]
+ *     summary: Replace an assessment record
+ *     description: Replaces the full assessment record for the given assessmentId (in-memory). title is required. If assessmentId is present in the body, it must match the path parameter.
+ *     parameters:
+ *       - in: path
+ *         name: assessmentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Assessment ID to replace.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/Assessment'
+ *     responses:
+ *       200:
+ *         description: Assessment updated.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   $ref: '#/components/schemas/Assessment'
+ *       400:
+ *         description: Invalid request or validation failure.
+ *       404:
+ *         description: Assessment not found.
+ *   patch:
+ *     tags: [Assessments]
+ *     summary: Partially update an assessment record
+ *     description: Partially updates fields for the given assessmentId (in-memory). Validates updated fields. If assessmentId is present in the body, it must match the path parameter.
+ *     parameters:
+ *       - in: path
+ *         name: assessmentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Assessment ID to patch.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             description: Partial assessment fields to update.
+ *     responses:
+ *       200:
+ *         description: Assessment updated.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   $ref: '#/components/schemas/Assessment'
+ *       400:
+ *         description: Invalid request or validation failure.
+ *       404:
+ *         description: Assessment not found.
+ *   delete:
+ *     tags: [Assessments]
+ *     summary: Delete an assessment record
+ *     description: Deletes the assessment record for the given assessmentId (in-memory).
+ *     parameters:
+ *       - in: path
+ *         name: assessmentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Assessment ID to delete.
+ *     responses:
+ *       204:
+ *         description: Assessment deleted.
+ *       404:
+ *         description: Assessment not found.
+ */
+router.get('/assessments/:assessmentId', (req, res) => assessmentsController.getById(req, res));
+router.put('/assessments/:assessmentId', (req, res) => assessmentsController.replace(req, res));
+router.patch('/assessments/:assessmentId', (req, res) => assessmentsController.patch(req, res));
+router.delete('/assessments/:assessmentId', (req, res) => assessmentsController.delete(req, res));
+
+/**
+ * @swagger
+ * /feedback:
+ *   post:
+ *     tags: [Feedback]
+ *     summary: Create a feedback record
+ *     description: Creates and stores a feedback record (in-memory). Requires feedbackId, assessmentId, employeeId, and rating.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/Feedback'
+ *     responses:
+ *       201:
+ *         description: Feedback created.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   $ref: '#/components/schemas/Feedback'
+ *       400:
+ *         description: Invalid request or validation failure.
+ *       409:
+ *         description: Duplicate feedbackId.
+ *   get:
+ *     tags: [Feedback]
+ *     summary: List feedback records
+ *     description: Lists all stored feedback records (in-memory).
+ *     responses:
+ *       200:
+ *         description: Feedback list.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Feedback'
+ *                 count:
+ *                   type: integer
+ *                   example: 1
+ */
+router.post('/feedback', (req, res) => feedbackController.create(req, res));
+router.get('/feedback', (req, res) => feedbackController.list(req, res));
+
+/**
+ * @swagger
+ * /feedback/{feedbackId}:
+ *   get:
+ *     tags: [Feedback]
+ *     summary: Get a feedback record
+ *     description: Gets a feedback record by feedbackId (in-memory).
+ *     parameters:
+ *       - in: path
+ *         name: feedbackId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Feedback ID to fetch.
+ *     responses:
+ *       200:
+ *         description: Feedback record.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   $ref: '#/components/schemas/Feedback'
+ *       404:
+ *         description: Feedback not found.
+ *   put:
+ *     tags: [Feedback]
+ *     summary: Replace a feedback record
+ *     description: Replaces the full feedback record for the given feedbackId (in-memory). assessmentId, employeeId, and rating are required. If feedbackId is present in the body, it must match the path parameter.
+ *     parameters:
+ *       - in: path
+ *         name: feedbackId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Feedback ID to replace.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/Feedback'
+ *     responses:
+ *       200:
+ *         description: Feedback updated.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   $ref: '#/components/schemas/Feedback'
+ *       400:
+ *         description: Invalid request or validation failure.
+ *       404:
+ *         description: Feedback not found.
+ *   patch:
+ *     tags: [Feedback]
+ *     summary: Partially update a feedback record
+ *     description: Partially updates fields for the given feedbackId (in-memory). Validates updated fields (including rating enum). If feedbackId is present in the body, it must match the path parameter.
+ *     parameters:
+ *       - in: path
+ *         name: feedbackId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Feedback ID to patch.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             description: Partial feedback fields to update.
+ *     responses:
+ *       200:
+ *         description: Feedback updated.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   $ref: '#/components/schemas/Feedback'
+ *       400:
+ *         description: Invalid request or validation failure.
+ *       404:
+ *         description: Feedback not found.
+ *   delete:
+ *     tags: [Feedback]
+ *     summary: Delete a feedback record
+ *     description: Deletes the feedback record for the given feedbackId (in-memory).
+ *     parameters:
+ *       - in: path
+ *         name: feedbackId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Feedback ID to delete.
+ *     responses:
+ *       204:
+ *         description: Feedback deleted.
+ *       404:
+ *         description: Feedback not found.
+ */
+router.get('/feedback/:feedbackId', (req, res) => feedbackController.getById(req, res));
+router.put('/feedback/:feedbackId', (req, res) => feedbackController.replace(req, res));
+router.patch('/feedback/:feedbackId', (req, res) => feedbackController.patch(req, res));
+router.delete('/feedback/:feedbackId', (req, res) => feedbackController.delete(req, res));
 
 module.exports = router;
