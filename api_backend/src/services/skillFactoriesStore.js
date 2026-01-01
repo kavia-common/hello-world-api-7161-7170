@@ -6,6 +6,7 @@
  * Notes:
  * - Data is reset whenever the server restarts.
  * - This module mirrors the employeesStore async API style so controllers can remain simple.
+ * - The SkillFactory schema is enforced in controllers; the store keeps records as provided.
  */
 
 /** @type {Map<string, any>} */

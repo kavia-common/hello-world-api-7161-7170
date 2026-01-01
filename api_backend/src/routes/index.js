@@ -144,15 +144,19 @@ router.get('/hello', (req, res) => {
  *     SkillFactoryEmployee:
  *       type: object
  *       required:
- *         - employeeId
- *         - employeeName
+ *         - id
+ *         - name
  *         - email
+ *         - initialRating
+ *         - currentRating
+ *         - startDate
+ *         - isInPool
  *       properties:
- *         employeeId:
+ *         id:
  *           type: string
  *           description: Employee ID.
  *           example: "E12345"
- *         employeeName:
+ *         name:
  *           type: string
  *           description: Employee name.
  *           example: "Jane Doe"
@@ -160,6 +164,27 @@ router.get('/hello', (req, res) => {
  *           type: string
  *           description: Employee email.
  *           example: "jane.doe@example.com"
+ *         initialRating:
+ *           type: number
+ *           description: Initial rating (numeric).
+ *           example: 3.5
+ *         currentRating:
+ *           type: number
+ *           description: Current rating (numeric).
+ *           example: 4.2
+ *         startDate:
+ *           type: string
+ *           description: Start date (recommended YYYY-MM-DD; also accepts ISO-8601 timestamp strings).
+ *           example: "2026-01-01"
+ *         endDate:
+ *           type: string
+ *           nullable: true
+ *           description: Optional end date (recommended YYYY-MM-DD; also accepts ISO-8601 timestamp strings). Must be >= startDate when both provided.
+ *           example: "2026-06-30"
+ *         isInPool:
+ *           type: boolean
+ *           description: Whether the employee is in pool.
+ *           example: true
  *     SkillFactory:
  *       type: object
  *       required:
@@ -182,29 +207,9 @@ router.get('/hello', (req, res) => {
  *           example: ["Mentor A", "Mentor B"]
  *         employees:
  *           type: array
- *           description: Employees in this skill factory.
+ *           description: Employees in this skill factory (each item includes rating/date/pool fields).
  *           items:
  *             $ref: '#/components/schemas/SkillFactoryEmployee'
- *         initialRating:
- *           type: number
- *           description: Initial rating (numeric).
- *           example: 3.5
- *         currentRating:
- *           type: number
- *           description: Current rating (numeric).
- *           example: 4.2
- *         startDate:
- *           type: string
- *           description: Start date (YYYY-MM-DD or ISO string).
- *           example: "2026-01-01"
- *         endDate:
- *           type: string
- *           description: End date (YYYY-MM-DD or ISO string). Must be >= startDate when both provided.
- *           example: "2026-06-30"
- *         isInPool:
- *           type: boolean
- *           description: Whether the skill factory is in pool.
- *           example: true
  *         createdAt:
  *           type: string
  *           description: Server timestamp when record was stored.

@@ -68,47 +68,6 @@ function parseOptionalDateString(value) {
   return { value: new Date(parsed).toISOString() };
 }
 
-function parseEmployeesArray(value) {
-  if (value === undefined || value === null) return { value: undefined };
-  if (!Array.isArray(value)) return { error: 'employees must be an array.' };
-
-  const errors = [];
-  /** @type {Array<{ employeeId: string, employeeName: string, email: string }>} */
-  const normalized = [];
-
-  value.forEach((item, idx) => {
-    if (!item || typeof item !== 'object' || Array.isArray(item)) {
-      errors.push({ field: `employees[${idx}]`, message: 'Each employee must be an object.' });
-      return;
-    }
-
-    const employeeId = asOptionalString(item.employeeId ?? item.id);
-    const employeeName = asOptionalString(item.employeeName ?? item.name);
-    const email = asOptionalString(item.email);
-
-    if (!isNonEmptyString(employeeId)) {
-      errors.push({ field: `employees[${idx}].employeeId`, message: 'employeeId is required.' });
-    }
-    if (!isNonEmptyString(employeeName)) {
-      errors.push({ field: `employees[${idx}].employeeName`, message: 'employeeName is required.' });
-    }
-    if (!isValidEmail(email)) {
-      errors.push({ field: `employees[${idx}].email`, message: 'Valid email is required.' });
-    }
-
-    if (isNonEmptyString(employeeId) && isNonEmptyString(employeeName) && isValidEmail(email)) {
-      normalized.push({
-        employeeId: employeeId.trim(),
-        employeeName: employeeName.trim(),
-        email: email.trim(),
-      });
-    }
-  });
-
-  if (errors.length > 0) return { errors };
-  return { value: normalized };
-}
-
 function parseMentorsArray(value) {
   if (value === undefined || value === null) return { value: undefined };
   if (!Array.isArray(value)) return { error: 'mentorNames must be an array of non-empty strings.' };
@@ -122,6 +81,119 @@ function parseMentorsArray(value) {
   return { value: mentors };
 }
 
+/**
+ * Parses and validates the employees array for SkillFactory create/replace/patch.
+ *
+ * Requirements (per employee item):
+ * - name (string) OR employeeName (string)
+ * - id (string) OR employeeId (string)
+ * - email (string, valid)
+ * - initialRating (number)
+ * - currentRating (number)
+ * - startDate (ISO date string; recommended YYYY-MM-DD)
+ * - endDate (ISO date string; optional)
+ * - isInPool (boolean)
+ *
+ * Normalizes output to:
+ * { id, name, email, initialRating, currentRating, startDate, endDate, isInPool }
+ */
+function parseEmployeesArray(value, { required }) {
+  if (value === undefined || value === null) {
+    if (required) return { error: 'employees is required and must be an array.' };
+    return { value: undefined };
+  }
+  if (!Array.isArray(value)) return { error: 'employees must be an array.' };
+
+  const errors = [];
+  /** @type {Array<{ id: string, name: string, email: string, initialRating: number, currentRating: number, startDate: string, endDate?: string, isInPool: boolean }>} */
+  const normalized = [];
+
+  value.forEach((item, idx) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      errors.push({ field: `employees[${idx}]`, message: 'Each employee must be an object.' });
+      return;
+    }
+
+    const id = asOptionalString(item.id ?? item.employeeId);
+    const name = asOptionalString(item.name ?? item.employeeName);
+    const email = asOptionalString(item.email);
+
+    if (!isNonEmptyString(id)) {
+      // Maintain backward-compatible field naming in error messages where reasonable.
+      errors.push({ field: `employees[${idx}].id`, message: 'id is required.' });
+    }
+    if (!isNonEmptyString(name)) {
+      errors.push({ field: `employees[${idx}].name`, message: 'name is required.' });
+    }
+    if (!isValidEmail(email)) {
+      errors.push({ field: `employees[${idx}].email`, message: 'Valid email is required.' });
+    }
+
+    const initialRating = item.initialRating;
+    const currentRating = item.currentRating;
+
+    if (!isFiniteNumber(initialRating)) {
+      errors.push({ field: `employees[${idx}].initialRating`, message: 'initialRating must be a number.' });
+    }
+    if (!isFiniteNumber(currentRating)) {
+      errors.push({ field: `employees[${idx}].currentRating`, message: 'currentRating must be a number.' });
+    }
+
+    const startDateParsed = parseOptionalDateString(item.startDate);
+    if (!startDateParsed.value) {
+      // startDate is required for employee entries
+      errors.push({ field: `employees[${idx}].startDate`, message: 'startDate is required.' });
+    } else if (startDateParsed.error) {
+      errors.push({ field: `employees[${idx}].startDate`, message: startDateParsed.error });
+    }
+
+    const endDateParsed = parseOptionalDateString(item.endDate);
+    if (endDateParsed.error) {
+      errors.push({ field: `employees[${idx}].endDate`, message: endDateParsed.error });
+    }
+
+    if (
+      startDateParsed.value &&
+      endDateParsed.value &&
+      Date.parse(startDateParsed.value) > Date.parse(endDateParsed.value)
+    ) {
+      errors.push({ field: `employees[${idx}].endDate`, message: 'endDate must be >= startDate.' });
+    }
+
+    const isInPool = item.isInPool ?? item.is_in_pool;
+    if (!isBoolean(isInPool)) {
+      errors.push({ field: `employees[${idx}].isInPool`, message: 'isInPool must be a boolean.' });
+    }
+
+    // Only push normalized if no obvious required-field issues for this entry.
+    // (We still collect full error list above; this prevents partial acceptance.)
+    if (
+      isNonEmptyString(id) &&
+      isNonEmptyString(name) &&
+      isValidEmail(email) &&
+      isFiniteNumber(initialRating) &&
+      isFiniteNumber(currentRating) &&
+      isNonEmptyString(startDateParsed.value) &&
+      isBoolean(isInPool) &&
+      !(endDateParsed.value && Date.parse(startDateParsed.value) > Date.parse(endDateParsed.value))
+    ) {
+      normalized.push({
+        id: id.trim(),
+        name: name.trim(),
+        email: email.trim(),
+        initialRating,
+        currentRating,
+        startDate: startDateParsed.value,
+        endDate: endDateParsed.value,
+        isInPool,
+      });
+    }
+  });
+
+  if (errors.length > 0) return { errors };
+  return { value: normalized };
+}
+
 class SkillFactoriesController {
   /**
    * PUBLIC_INTERFACE
@@ -130,15 +202,13 @@ class SkillFactoriesController {
    * Required fields:
    * - skillFactoryId
    * - skillFactoryName
+   * - employees (array of employee objects; see validation rules below)
    *
    * Optional fields:
    * - mentorNames (string[])
-   * - employees (array of { employeeId, employeeName, email })
-   * - initialRating (number)
-   * - currentRating (number)
-   * - startDate (string date)
-   * - endDate (string date)
-   * - isInPool (boolean)
+   *
+   * NOTE: The following fields are now part of EACH employees[] entry and are NOT allowed at the top-level:
+   * - initialRating, currentRating, startDate, endDate, isInPool
    *
    * @param {import('express').Request} req Express request
    * @param {import('express').Response} res Express response
@@ -166,37 +236,16 @@ class SkillFactoriesController {
     const { value: mentorNames, error: mentorNamesError } = parseMentorsArray(payload.mentorNames ?? payload.mentors);
     if (mentorNamesError) errors.push({ field: 'mentorNames', message: mentorNamesError });
 
-    const employeesParsed = parseEmployeesArray(payload.employees);
+    const employeesParsed = parseEmployeesArray(payload.employees, { required: true });
     if (employeesParsed.error) errors.push({ field: 'employees', message: employeesParsed.error });
     if (employeesParsed.errors) errors.push(...employeesParsed.errors);
 
-    const initialRating = payload.initialRating;
-    const currentRating = payload.currentRating;
-
-    if (initialRating !== undefined && initialRating !== null && !isFiniteNumber(initialRating)) {
-      errors.push({ field: 'initialRating', message: 'initialRating must be a number.' });
-    }
-    if (currentRating !== undefined && currentRating !== null && !isFiniteNumber(currentRating)) {
-      errors.push({ field: 'currentRating', message: 'currentRating must be a number.' });
-    }
-
-    const startDateParsed = parseOptionalDateString(payload.startDate);
-    if (startDateParsed.error) errors.push({ field: 'startDate', message: startDateParsed.error });
-
-    const endDateParsed = parseOptionalDateString(payload.endDate);
-    if (endDateParsed.error) errors.push({ field: 'endDate', message: endDateParsed.error });
-
-    if (
-      startDateParsed.value &&
-      endDateParsed.value &&
-      Date.parse(startDateParsed.value) > Date.parse(endDateParsed.value)
-    ) {
-      errors.push({ field: 'endDate', message: 'endDate must be >= startDate.' });
-    }
-
-    const isInPool = payload.isInPool ?? payload.is_in_pool;
-    if (isInPool !== undefined && isInPool !== null && !isBoolean(isInPool)) {
-      errors.push({ field: 'isInPool', message: 'isInPool must be a boolean.' });
+    // Reject top-level legacy fields (moved to employees[]).
+    const movedFields = ['initialRating', 'currentRating', 'startDate', 'endDate', 'isInPool', 'is_in_pool'];
+    for (const f of movedFields) {
+      if (payload[f] !== undefined) {
+        errors.push({ field: f, message: `${f} must be provided per employee (employees[].${f}), not at the top-level.` });
+      }
     }
 
     if (errors.length > 0) {
@@ -212,11 +261,6 @@ class SkillFactoriesController {
       skillFactoryName: skillFactoryName.trim(),
       mentorNames,
       employees: employeesParsed.value,
-      initialRating,
-      currentRating,
-      startDate: startDateParsed.value,
-      endDate: endDateParsed.value,
-      isInPool,
     };
 
     try {
@@ -294,8 +338,11 @@ class SkillFactoriesController {
    *
    * Required fields in body:
    * - skillFactoryName
+   * - employees
    *
    * If skillFactoryId is present in the body, it must match the path parameter.
+   *
+   * NOTE: rating/date/pool fields are part of employees[] items (not top-level).
    *
    * @param {import('express').Request} req Express request
    * @param {import('express').Response} res Express response
@@ -330,37 +377,15 @@ class SkillFactoriesController {
     const { value: mentorNames, error: mentorNamesError } = parseMentorsArray(payload.mentorNames ?? payload.mentors);
     if (mentorNamesError) errors.push({ field: 'mentorNames', message: mentorNamesError });
 
-    const employeesParsed = parseEmployeesArray(payload.employees);
+    const employeesParsed = parseEmployeesArray(payload.employees, { required: true });
     if (employeesParsed.error) errors.push({ field: 'employees', message: employeesParsed.error });
     if (employeesParsed.errors) errors.push(...employeesParsed.errors);
 
-    const initialRating = payload.initialRating;
-    const currentRating = payload.currentRating;
-
-    if (initialRating !== undefined && initialRating !== null && !isFiniteNumber(initialRating)) {
-      errors.push({ field: 'initialRating', message: 'initialRating must be a number.' });
-    }
-    if (currentRating !== undefined && currentRating !== null && !isFiniteNumber(currentRating)) {
-      errors.push({ field: 'currentRating', message: 'currentRating must be a number.' });
-    }
-
-    const startDateParsed = parseOptionalDateString(payload.startDate);
-    if (startDateParsed.error) errors.push({ field: 'startDate', message: startDateParsed.error });
-
-    const endDateParsed = parseOptionalDateString(payload.endDate);
-    if (endDateParsed.error) errors.push({ field: 'endDate', message: endDateParsed.error });
-
-    if (
-      startDateParsed.value &&
-      endDateParsed.value &&
-      Date.parse(startDateParsed.value) > Date.parse(endDateParsed.value)
-    ) {
-      errors.push({ field: 'endDate', message: 'endDate must be >= startDate.' });
-    }
-
-    const isInPool = payload.isInPool ?? payload.is_in_pool;
-    if (isInPool !== undefined && isInPool !== null && !isBoolean(isInPool)) {
-      errors.push({ field: 'isInPool', message: 'isInPool must be a boolean.' });
+    const movedFields = ['initialRating', 'currentRating', 'startDate', 'endDate', 'isInPool', 'is_in_pool'];
+    for (const f of movedFields) {
+      if (payload[f] !== undefined) {
+        errors.push({ field: f, message: `${f} must be provided per employee (employees[].${f}), not at the top-level.` });
+      }
     }
 
     if (errors.length > 0) {
@@ -384,11 +409,6 @@ class SkillFactoriesController {
       skillFactoryName: skillFactoryName.trim(),
       mentorNames,
       employees: employeesParsed.value,
-      initialRating,
-      currentRating,
-      startDate: startDateParsed.value,
-      endDate: endDateParsed.value,
-      isInPool,
     };
 
     const updated = await skillFactoriesStore.replaceSkillFactory(pathId, replacement);
@@ -411,6 +431,13 @@ class SkillFactoriesController {
    *
    * If skillFactoryId is present in the body, it must match the path parameter.
    * Updated fields are validated.
+   *
+   * Allowed patch fields:
+   * - skillFactoryName
+   * - mentorNames
+   * - employees
+   *
+   * NOTE: rating/date/pool fields are part of employees[] items (not top-level).
    *
    * @param {import('express').Request} req Express request
    * @param {import('express').Response} res Express response
@@ -455,61 +482,17 @@ class SkillFactoriesController {
     }
 
     if (payload.employees !== undefined) {
-      const employeesParsed = parseEmployeesArray(payload.employees);
+      const employeesParsed = parseEmployeesArray(payload.employees, { required: false });
       if (employeesParsed.error) errors.push({ field: 'employees', message: employeesParsed.error });
       if (employeesParsed.errors) errors.push(...employeesParsed.errors);
       if (employeesParsed.value) patch.employees = employeesParsed.value;
     }
 
-    if (payload.initialRating !== undefined) {
-      if (payload.initialRating !== null && !isFiniteNumber(payload.initialRating)) {
-        errors.push({ field: 'initialRating', message: 'initialRating must be a number.' });
-      } else {
-        patch.initialRating = payload.initialRating;
-      }
-    }
-
-    if (payload.currentRating !== undefined) {
-      if (payload.currentRating !== null && !isFiniteNumber(payload.currentRating)) {
-        errors.push({ field: 'currentRating', message: 'currentRating must be a number.' });
-      } else {
-        patch.currentRating = payload.currentRating;
-      }
-    }
-
-    if (payload.startDate !== undefined) {
-      const startDateParsed = parseOptionalDateString(payload.startDate);
-      if (startDateParsed.error) errors.push({ field: 'startDate', message: startDateParsed.error });
-      else patch.startDate = startDateParsed.value;
-    }
-
-    if (payload.endDate !== undefined) {
-      const endDateParsed = parseOptionalDateString(payload.endDate);
-      if (endDateParsed.error) errors.push({ field: 'endDate', message: endDateParsed.error });
-      else patch.endDate = endDateParsed.value;
-    }
-
-    // If both dates are present in patch OR one is in patch and the other exists, validate ordering.
-    const existing = await skillFactoriesStore.getSkillFactoryById(pathId);
-    if (!existing) {
-      return res.status(404).json({
-        status: 'error',
-        message: `Skill Factory with skillFactoryId ${pathId} not found.`,
-      });
-    }
-
-    const startForCompare = patch.startDate !== undefined ? patch.startDate : existing.startDate;
-    const endForCompare = patch.endDate !== undefined ? patch.endDate : existing.endDate;
-    if (startForCompare && endForCompare && Date.parse(startForCompare) > Date.parse(endForCompare)) {
-      errors.push({ field: 'endDate', message: 'endDate must be >= startDate.' });
-    }
-
-    if (payload.isInPool !== undefined || payload.is_in_pool !== undefined) {
-      const isInPool = payload.isInPool ?? payload.is_in_pool;
-      if (isInPool !== null && !isBoolean(isInPool)) {
-        errors.push({ field: 'isInPool', message: 'isInPool must be a boolean when provided.' });
-      } else {
-        patch.isInPool = isInPool;
+    // Reject top-level legacy fields (moved to employees[]).
+    const movedFields = ['initialRating', 'currentRating', 'startDate', 'endDate', 'isInPool', 'is_in_pool'];
+    for (const f of movedFields) {
+      if (payload[f] !== undefined) {
+        errors.push({ field: f, message: `${f} must be provided per employee (employees[].${f}), not at the top-level.` });
       }
     }
 
@@ -518,6 +501,14 @@ class SkillFactoriesController {
         status: 'error',
         message: 'Validation failed.',
         errors,
+      });
+    }
+
+    const existing = await skillFactoriesStore.getSkillFactoryById(pathId);
+    if (!existing) {
+      return res.status(404).json({
+        status: 'error',
+        message: `Skill Factory with skillFactoryId ${pathId} not found.`,
       });
     }
 
