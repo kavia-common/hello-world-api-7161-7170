@@ -5,6 +5,7 @@ const skillFactoriesController = require('../controllers/skillFactories');
 const learningPathsController = require('../controllers/learningPaths');
 const assessmentsController = require('../controllers/assessments');
 const feedbackController = require('../controllers/feedback');
+const metricsController = require('../controllers/metrics');
 
 const router = express.Router();
 
@@ -23,6 +24,8 @@ const router = express.Router();
  *     description: Assessments management (in-memory)
  *   - name: Feedback
  *     description: Feedback capturing (in-memory)
+ *   - name: Metrics
+ *     description: Aggregated success metrics across Learning Paths, Skill Factories, and Employees (computed in-memory)
  */
 
 /**
@@ -444,6 +447,215 @@ router.get('/hello', (req, res) => {
  *           type: string
  *           description: Server timestamp when feedback was submitted.
  *           example: "2026-01-01T00:00:00.000Z"
+ *     MetricsSummaryResponse:
+ *       type: object
+ *       properties:
+ *         status:
+ *           type: string
+ *           example: success
+ *         data:
+ *           type: object
+ *           properties:
+ *             learningPaths:
+ *               type: object
+ *               properties:
+ *                 totals:
+ *                   type: integer
+ *                   example: 2
+ *                 enrolledCount:
+ *                   type: integer
+ *                   example: 150
+ *                 completedCount:
+ *                   type: integer
+ *                   example: 70
+ *                 inProgressCount:
+ *                   type: integer
+ *                   example: 60
+ *                 topPaths:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       learningPathName:
+ *                         type: string
+ *                         example: "Cloud Fundamentals"
+ *                       completionRate:
+ *                         type: number
+ *                         example: 0.4
+ *                       enrolled:
+ *                         type: integer
+ *                         example: 100
+ *                       completed:
+ *                         type: integer
+ *                         example: 40
+ *                       inProgress:
+ *                         type: integer
+ *                         example: 50
+ *                 averageDuration:
+ *                   nullable: true
+ *                   oneOf:
+ *                     - type: number
+ *                     - type: "null"
+ *                   description: Average numeric duration across learning paths (only computed when duration is numeric).
+ *                   example: 6
+ *             skillFactories:
+ *               type: object
+ *               properties:
+ *                 totals:
+ *                   type: integer
+ *                   example: 1
+ *                 totalMentors:
+ *                   type: integer
+ *                   example: 2
+ *                 totalEmployees:
+ *                   type: integer
+ *                   example: 4
+ *                 poolCounts:
+ *                   type: object
+ *                   properties:
+ *                     inPool:
+ *                       type: integer
+ *                       example: 2
+ *                     notInPool:
+ *                       type: integer
+ *                       example: 2
+ *                 topFactories:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       skillFactoryName:
+ *                         type: string
+ *                         example: "Platform Engineering"
+ *                       employeeCount:
+ *                         type: integer
+ *                         example: 4
+ *                       mentorCount:
+ *                         type: integer
+ *                         example: 2
+ *                 dateRanges:
+ *                   type: object
+ *                   properties:
+ *                     avgDurationDays:
+ *                       type: number
+ *                       example: 120
+ *                     minDurationDays:
+ *                       type: number
+ *                       example: 30
+ *                     maxDurationDays:
+ *                       type: number
+ *                       example: 180
+ *             employees:
+ *               type: object
+ *               properties:
+ *                 totals:
+ *                   type: integer
+ *                   example: 10
+ *                 billedCount:
+ *                   type: integer
+ *                   example: 6
+ *                 notBilledCount:
+ *                   type: integer
+ *                   example: 4
+ *                 billingRate:
+ *                   type: number
+ *                   example: 0.6
+ *             assessments:
+ *               type: object
+ *               properties:
+ *                 totals:
+ *                   type: integer
+ *                   example: 3
+ *                 withMarksCount:
+ *                   type: integer
+ *                   example: 2
+ *                 averageMarks:
+ *                   nullable: true
+ *                   oneOf:
+ *                     - type: number
+ *                     - type: "null"
+ *                   example: 82.5
+ *             feedback:
+ *               type: object
+ *               properties:
+ *                 totals:
+ *                   type: integer
+ *                   example: 5
+ *                 withMarksCount:
+ *                   type: integer
+ *                   example: 4
+ *                 averageMarks:
+ *                   nullable: true
+ *                   oneOf:
+ *                     - type: number
+ *                     - type: "null"
+ *                   example: 4.2
+ *     LearningPathMetricsItem:
+ *       type: object
+ *       properties:
+ *         learningPathName:
+ *           type: string
+ *           example: "Cloud Fundamentals"
+ *         enrolled:
+ *           type: integer
+ *           example: 100
+ *         completed:
+ *           type: integer
+ *           example: 40
+ *         inProgress:
+ *           type: integer
+ *           example: 50
+ *         completionRate:
+ *           type: number
+ *           example: 0.4
+ *     SkillFactoryMetricsItem:
+ *       type: object
+ *       properties:
+ *         skillFactoryId:
+ *           type: string
+ *           nullable: true
+ *           example: "SF-PLATFORM-001"
+ *         skillFactoryName:
+ *           type: string
+ *           example: "Platform Engineering"
+ *         mentorCount:
+ *           type: integer
+ *           example: 2
+ *         employeeCount:
+ *           type: integer
+ *           example: 4
+ *         inPoolCount:
+ *           type: integer
+ *           example: 2
+ *         notInPoolCount:
+ *           type: integer
+ *           example: 2
+ *     LearningPathMetricsListResponse:
+ *       type: object
+ *       properties:
+ *         status:
+ *           type: string
+ *           example: success
+ *         data:
+ *           type: array
+ *           items:
+ *             $ref: '#/components/schemas/LearningPathMetricsItem'
+ *         count:
+ *           type: integer
+ *           example: 2
+ *     SkillFactoryMetricsListResponse:
+ *       type: object
+ *       properties:
+ *         status:
+ *           type: string
+ *           example: success
+ *         data:
+ *           type: array
+ *           items:
+ *             $ref: '#/components/schemas/SkillFactoryMetricsItem'
+ *         count:
+ *           type: integer
+ *           example: 1
  */
 
 /**
@@ -1286,5 +1498,58 @@ router.get('/feedback/:feedbackId', (req, res) => feedbackController.getById(req
 router.put('/feedback/:feedbackId', (req, res) => feedbackController.replace(req, res));
 router.patch('/feedback/:feedbackId', (req, res) => feedbackController.patch(req, res));
 router.delete('/feedback/:feedbackId', (req, res) => feedbackController.delete(req, res));
+
+/**
+ * @swagger
+ * /metrics/summary:
+ *   get:
+ *     tags: [Metrics]
+ *     summary: Get aggregated success metrics summary
+ *     description: |
+ *       Computes aggregated success metrics on each request from in-memory stores (no persistence).
+ *       Includes Learning Paths rollups, Skill Factories rollups, Employees billed counts (inferred safely), and Assessments/Feedback counts with optional average marks.
+ *     responses:
+ *       200:
+ *         description: Metrics summary.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/MetricsSummaryResponse'
+ */
+router.get('/metrics/summary', (req, res) => metricsController.summary(req, res));
+
+/**
+ * @swagger
+ * /metrics/learning-paths:
+ *   get:
+ *     tags: [Metrics]
+ *     summary: Get per-learning-path success metrics
+ *     description: Computes per-learning-path enrollment/completion/in-progress and completion rate (completed/enrolled) from in-memory Learning Paths data.
+ *     responses:
+ *       200:
+ *         description: Learning paths metrics list.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/LearningPathMetricsListResponse'
+ */
+router.get('/metrics/learning-paths', (req, res) => metricsController.learningPaths(req, res));
+
+/**
+ * @swagger
+ * /metrics/skill-factories:
+ *   get:
+ *     tags: [Metrics]
+ *     summary: Get per-skill-factory metrics
+ *     description: Computes per-skill-factory mentor/employee counts and pool breakdown from in-memory Skill Factories data.
+ *     responses:
+ *       200:
+ *         description: Skill factories metrics list.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SkillFactoryMetricsListResponse'
+ */
+router.get('/metrics/skill-factories', (req, res) => metricsController.skillFactories(req, res));
 
 module.exports = router;
