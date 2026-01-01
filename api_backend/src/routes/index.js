@@ -83,6 +83,19 @@ router.get('/hello', (req, res) => {
  *                 description: Role for the user.
  *                 enum: [admin, manager, user]
  *                 example: "user"
+ *           examples:
+ *             signupUser:
+ *               summary: Create a standard user
+ *               value:
+ *                 username: "jane.doe"
+ *                 password: "S3cretPass!"
+ *                 role: "user"
+ *             signupAdmin:
+ *               summary: Create an admin user
+ *               value:
+ *                 username: "admin.user"
+ *                 password: "AdminPass123!"
+ *                 role: "admin"
  *     responses:
  *       201:
  *         description: User created.
@@ -107,6 +120,15 @@ router.get('/hello', (req, res) => {
  *                     createdAt:
  *                       type: string
  *                       example: "2026-01-01T00:00:00.000Z"
+ *             examples:
+ *               created:
+ *                 summary: Successful signup
+ *                 value:
+ *                   status: "success"
+ *                   data:
+ *                     username: "jane.doe"
+ *                     role: "user"
+ *                     createdAt: "2026-01-01T00:00:00.000Z"
  *       400:
  *         description: Invalid request or validation failure.
  *       409:
@@ -147,6 +169,12 @@ router.post('/signup', (req, res) => authController.signup(req, res));
  *                 type: string
  *                 description: Plain-text password.
  *                 example: "S3cretPass!"
+ *           examples:
+ *             login:
+ *               summary: Login with username/password
+ *               value:
+ *                 username: "jane.doe"
+ *                 password: "S3cretPass!"
  *     responses:
  *       200:
  *         description: Login successful.
@@ -168,6 +196,14 @@ router.post('/signup', (req, res) => authController.signup(req, res));
  *                       type: string
  *                       enum: [admin, manager, user]
  *                       example: "user"
+ *             examples:
+ *               success:
+ *                 summary: Successful login (token truncated)
+ *                 value:
+ *                   token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJqYW5lLmRvZSIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzM1Njg5NjAwLCJleHAiOjE3MzU2OTMyMDB9.signature"
+ *                   user:
+ *                     username: "jane.doe"
+ *                     role: "user"
  *       400:
  *         description: Missing fields.
  *       401:
