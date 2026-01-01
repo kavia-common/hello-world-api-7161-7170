@@ -7,7 +7,7 @@ const HOST = process.env.HOST || '0.0.0.0';
 
 /**
  * PUBLIC_INTERFACE
- * Starts the HTTP server for the minimal Hello World API.
+ * Starts the HTTP server for the minimal Digi Portal API.
  *
  * Environment variables:
  * - PORT (optional): defaults to 3001

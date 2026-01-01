@@ -1,4 +1,4 @@
-# hello-world-api-7161-7170
+# Digi Portal API
 
 A minimal Express.js API that exposes a `GET /hello` endpoint and an in-memory Employee CRUD API.
 
