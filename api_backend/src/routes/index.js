@@ -10,7 +10,7 @@ const router = express.Router();
  *   - name: Hello
  *     description: Hello World endpoint
  *   - name: Employees
- *     description: Employee record management (MongoDB)
+ *     description: Employee record management (in-memory)
  */
 
 /**
