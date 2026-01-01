@@ -7,6 +7,7 @@ const assessmentsController = require('../controllers/assessments');
 const metricsController = require('../controllers/metrics');
 const authController = require('../controllers/auth');
 const instructionsController = require('../controllers/instructions');
+const announcementsController = require('../controllers/announcements');
 const { verifyJwt, requireRole } = require('../middleware');
 
 const router = express.Router();
@@ -30,6 +31,8 @@ const router = express.Router();
  *     description: User signup/authentication endpoints (in-memory)
  *   - name: Instructions
  *     description: Instruction content management (in-memory)
+ *   - name: Announcements
+ *     description: Announcements feed management (in-memory)
  */
 
 /**
@@ -1903,6 +1906,351 @@ router.delete(
   verifyJwt,
   requireRole(['admin', 'manager']),
   (req, res) => instructionsController.delete(req, res)
+);
+
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     Announcement:
+ *       type: object
+ *       required:
+ *         - id
+ *         - title
+ *         - message
+ *       properties:
+ *         id:
+ *           type: string
+ *           description: Unique announcement id (client-provided or server-generated).
+ *           example: "announce-001"
+ *         title:
+ *           type: string
+ *           description: Announcement title.
+ *           example: "Maintenance window"
+ *         message:
+ *           type: string
+ *           description: Announcement message body.
+ *           example: "The portal will be unavailable on Saturday 02:00-03:00 UTC."
+ *         author:
+ *           type: string
+ *           description: Optional author name.
+ *           example: "IT Ops"
+ *         priority:
+ *           type: string
+ *           description: Priority of the announcement.
+ *           enum: [low, normal, high]
+ *           example: "high"
+ *         startsAt:
+ *           type: string
+ *           description: Optional start timestamp (ISO-8601 string).
+ *           example: "2026-01-01T00:00:00.000Z"
+ *         endsAt:
+ *           type: string
+ *           description: Optional end timestamp (ISO-8601 string). Must be >= startsAt when both provided.
+ *           example: "2026-01-02T00:00:00.000Z"
+ *         isActive:
+ *           type: boolean
+ *           description: Whether the announcement is currently active.
+ *           example: true
+ *         createdAt:
+ *           type: string
+ *           description: Server timestamp when record was stored.
+ *           example: "2026-01-01T00:00:00.000Z"
+ *         updatedAt:
+ *           type: string
+ *           description: Server timestamp when record was last updated.
+ *           example: "2026-01-01T00:00:00.000Z"
+ */
+
+/**
+ * @swagger
+ * /announcements:
+ *   get:
+ *     tags: [Announcements]
+ *     summary: List announcements (public)
+ *     description: Lists all stored announcements (in-memory).
+ *     responses:
+ *       200:
+ *         description: Announcements list.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Announcement'
+ *                 count:
+ *                   type: integer
+ *                   example: 1
+ *   post:
+ *     tags: [Announcements]
+ *     summary: Create an announcement (protected)
+ *     description: Creates and stores an announcement record (in-memory). Requires title and message. id is optional; if omitted the server generates one.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [title, message]
+ *             properties:
+ *               id:
+ *                 type: string
+ *                 example: "announce-001"
+ *               title:
+ *                 type: string
+ *                 example: "Maintenance window"
+ *               message:
+ *                 type: string
+ *                 example: "The portal will be unavailable on Saturday 02:00-03:00 UTC."
+ *               author:
+ *                 type: string
+ *                 example: "IT Ops"
+ *               priority:
+ *                 type: string
+ *                 enum: [low, normal, high]
+ *                 example: "high"
+ *               startsAt:
+ *                 type: string
+ *                 example: "2026-01-01T00:00:00.000Z"
+ *               endsAt:
+ *                 type: string
+ *                 example: "2026-01-02T00:00:00.000Z"
+ *               isActive:
+ *                 type: boolean
+ *                 example: true
+ *           examples:
+ *             createAnnouncement:
+ *               summary: Create a high priority announcement
+ *               value:
+ *                 id: "announce-001"
+ *                 title: "Maintenance window"
+ *                 message: "The portal will be unavailable on Saturday 02:00-03:00 UTC."
+ *                 author: "IT Ops"
+ *                 priority: "high"
+ *                 startsAt: "2026-01-01T00:00:00.000Z"
+ *                 endsAt: "2026-01-02T00:00:00.000Z"
+ *                 isActive: true
+ *     responses:
+ *       201:
+ *         description: Announcement created.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   $ref: '#/components/schemas/Announcement'
+ *       400:
+ *         description: Invalid request or validation failure.
+ *       401:
+ *         description: Unauthorized (missing/invalid JWT).
+ *       403:
+ *         description: Forbidden (insufficient role).
+ *       409:
+ *         description: Duplicate id.
+ */
+router.get('/announcements', (req, res) => announcementsController.list(req, res));
+router.post(
+  '/announcements',
+  verifyJwt,
+  requireRole(['admin', 'manager']),
+  (req, res) => announcementsController.create(req, res)
+);
+
+/**
+ * @swagger
+ * /announcements/{id}:
+ *   get:
+ *     tags: [Announcements]
+ *     summary: Get an announcement (public)
+ *     description: Gets a single announcement by id (in-memory).
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Announcement id to fetch.
+ *     responses:
+ *       200:
+ *         description: Announcement record.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   $ref: '#/components/schemas/Announcement'
+ *       404:
+ *         description: Announcement not found.
+ *   put:
+ *     tags: [Announcements]
+ *     summary: Replace an announcement (protected)
+ *     description: Replaces the full announcement record for the given id (in-memory). title and message are required. If id is present in the body, it must match the path parameter.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Announcement id to replace.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [title, message]
+ *             properties:
+ *               id:
+ *                 type: string
+ *                 example: "announce-001"
+ *               title:
+ *                 type: string
+ *                 example: "Maintenance window (updated)"
+ *               message:
+ *                 type: string
+ *                 example: "Updated details..."
+ *               author:
+ *                 type: string
+ *                 example: "IT Ops"
+ *               priority:
+ *                 type: string
+ *                 enum: [low, normal, high]
+ *                 example: "normal"
+ *               startsAt:
+ *                 type: string
+ *                 example: "2026-01-01T00:00:00.000Z"
+ *               endsAt:
+ *                 type: string
+ *                 example: "2026-01-02T00:00:00.000Z"
+ *               isActive:
+ *                 type: boolean
+ *                 example: true
+ *     responses:
+ *       200:
+ *         description: Announcement updated.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   $ref: '#/components/schemas/Announcement'
+ *       400:
+ *         description: Invalid request or validation failure.
+ *       401:
+ *         description: Unauthorized (missing/invalid JWT).
+ *       403:
+ *         description: Forbidden (insufficient role).
+ *       404:
+ *         description: Announcement not found.
+ *   patch:
+ *     tags: [Announcements]
+ *     summary: Partially update an announcement (protected)
+ *     description: Partially updates fields for the given id (in-memory). If id is present in the body, it must match the path parameter.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Announcement id to patch.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             description: Partial announcement fields to update.
+ *           examples:
+ *             patchPriority:
+ *               summary: Update priority only
+ *               value:
+ *                 priority: "high"
+ *     responses:
+ *       200:
+ *         description: Announcement updated.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   $ref: '#/components/schemas/Announcement'
+ *       400:
+ *         description: Invalid request or validation failure.
+ *       401:
+ *         description: Unauthorized (missing/invalid JWT).
+ *       403:
+ *         description: Forbidden (insufficient role).
+ *       404:
+ *         description: Announcement not found.
+ *   delete:
+ *     tags: [Announcements]
+ *     summary: Delete an announcement (protected)
+ *     description: Deletes the announcement record for the given id (in-memory).
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Announcement id to delete.
+ *     responses:
+ *       204:
+ *         description: Announcement deleted.
+ *       401:
+ *         description: Unauthorized (missing/invalid JWT).
+ *       403:
+ *         description: Forbidden (insufficient role).
+ *       404:
+ *         description: Announcement not found.
+ */
+router.get('/announcements/:id', (req, res) => announcementsController.getById(req, res));
+router.put(
+  '/announcements/:id',
+  verifyJwt,
+  requireRole(['admin', 'manager']),
+  (req, res) => announcementsController.replace(req, res)
+);
+router.patch(
+  '/announcements/:id',
+  verifyJwt,
+  requireRole(['admin', 'manager']),
+  (req, res) => announcementsController.patch(req, res)
+);
+router.delete(
+  '/announcements/:id',
+  verifyJwt,
+  requireRole(['admin', 'manager']),
+  (req, res) => announcementsController.delete(req, res)
 );
 
 module.exports = router;
