@@ -4,13 +4,12 @@ const options = {
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'My Express API',
+      title: 'Hello World API',
       version: '1.0.0',
-      description:
-        'A simple Express API documented with Swagger. Includes user authentication endpoints.',
+      description: 'A minimal Express API that returns Hello World.',
     },
   },
-  apis: ['./src/routes/*.js'], // Path to the API docs
+  apis: ['./src/routes/*.js'],
 };
 
 const swaggerSpec = swaggerJSDoc(options);
