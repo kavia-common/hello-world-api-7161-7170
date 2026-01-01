@@ -164,9 +164,24 @@ Expected response:
 
 Backups are snapshots of the in-memory stores. They reset on server restart.
 
+Manual endpoints:
+
 - `POST /backup` (protected: admin/manager): creates a backup snapshot
 - `GET /backup` (public): lists backups
 - `GET /backup/:id` (public): fetches a backup snapshot
+
+Job history endpoint:
+
+- `GET /backup/jobs` (public): lists backup job history (e.g., scheduled runs). Jobs reset on restart.
+
+Scheduled backups (optional):
+
+This service also supports a simple in-process scheduler for periodic backups.
+
+Environment variables:
+
+- `BACKUP_SCHEDULER_ENABLED`: set to `true` to enable scheduled backups (default: `false`)
+- `BACKUP_SCHEDULER_INTERVAL_MS`: interval in milliseconds (default: `900000` = 15 minutes)
 
 ## API documentation (Swagger UI)
 

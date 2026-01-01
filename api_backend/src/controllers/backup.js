@@ -1,6 +1,7 @@
 'use strict';
 
 const backupsStore = require('../services/backupsStore');
+const backupJobsStore = require('../services/backupJobsStore');
 
 const employeesStore = require('../services/employeesStore');
 const skillFactoriesStore = require('../services/skillFactoriesStore');
@@ -162,10 +163,30 @@ async function getBackupById(req, res) {
   });
 }
 
+/**
+ * PUBLIC_INTERFACE
+ * Lists backup job history (public).
+ *
+ * This is primarily used to observe scheduled backup runs.
+ *
+ * @param {import('express').Request} _req Express Request
+ * @param {import('express').Response} res Express Response
+ * @returns {Promise<void>} JSON response
+ */
+async function listBackupJobs(_req, res) {
+  const jobs = backupJobsStore.listJobs();
+  return res.status(200).json({
+    status: 'success',
+    data: jobs,
+    count: jobs.length,
+  });
+}
+
 module.exports = {
   runBackupInternal,
   createBackup,
   listBackups,
   getBackupById,
+  listBackupJobs,
 };
 

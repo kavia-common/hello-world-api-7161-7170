@@ -262,4 +262,17 @@ router.get('/backup', backupController.listBackups);
  */
 router.get('/backup/:id', backupController.getBackupById);
 
+/**
+ * @swagger
+ * /backup/jobs:
+ *   get:
+ *     summary: List backup job history
+ *     description: Lists recorded backup jobs (scheduled and/or manual). Jobs are stored in-memory and reset on restart.
+ *     tags: [Backups]
+ *     responses:
+ *       200:
+ *         description: Backup job history
+ */
+router.get('/backup/jobs', backupController.listBackupJobs);
+
 module.exports = router;
