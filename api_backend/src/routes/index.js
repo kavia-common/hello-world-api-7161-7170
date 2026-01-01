@@ -6,6 +6,7 @@ const learningPathsController = require('../controllers/learningPaths');
 const assessmentsController = require('../controllers/assessments');
 const metricsController = require('../controllers/metrics');
 const authController = require('../controllers/auth');
+const instructionsController = require('../controllers/instructions');
 const { verifyJwt, requireRole } = require('../middleware');
 
 const router = express.Router();
@@ -27,6 +28,8 @@ const router = express.Router();
  *     description: Aggregated success metrics across Learning Paths, Skill Factories, and Employees (computed in-memory)
  *   - name: Auth
  *     description: User signup/authentication endpoints (in-memory)
+ *   - name: Instructions
+ *     description: Instruction content management (in-memory)
  */
 
 /**
@@ -753,6 +756,41 @@ router.post('/login', (req, res) => authController.login(req, res));
  *         count:
  *           type: integer
  *           example: 1
+ *     Instruction:
+ *       type: object
+ *       required:
+ *         - id
+ *         - title
+ *         - content
+ *       properties:
+ *         id:
+ *           type: string
+ *           description: Unique instruction identifier (client-provided).
+ *           example: "getting-started"
+ *         slug:
+ *           type: string
+ *           description: Optional human-friendly unique slug (unique if provided).
+ *           example: "getting-started"
+ *         title:
+ *           type: string
+ *           description: Instruction title.
+ *           example: "Getting started"
+ *         content:
+ *           type: string
+ *           description: Instruction content (Markdown or plain text).
+ *           example: "Welcome to Digi Portal. Use the navigation to access features..."
+ *         category:
+ *           type: string
+ *           description: Optional category grouping.
+ *           example: "general"
+ *         createdAt:
+ *           type: string
+ *           description: Server timestamp when record was stored.
+ *           example: "2026-01-01T00:00:00.000Z"
+ *         updatedAt:
+ *           type: string
+ *           description: Server timestamp when record was last updated.
+ *           example: "2026-01-01T00:00:00.000Z"
  */
 
 /**
@@ -1619,5 +1657,252 @@ router.get('/metrics/learning-paths', (req, res) => metricsController.learningPa
  *               $ref: '#/components/schemas/SkillFactoryMetricsListResponse'
  */
 router.get('/metrics/skill-factories', (req, res) => metricsController.skillFactories(req, res));
+
+/**
+ * @swagger
+ * /instructions:
+ *   post:
+ *     tags: [Instructions]
+ *     summary: Create an instruction (protected)
+ *     description: Creates and stores an instruction record (in-memory). Requires id, title, and content. If slug is provided it must be unique.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/Instruction'
+ *           examples:
+ *             createInstruction:
+ *               summary: Create a general instruction
+ *               value:
+ *                 id: "getting-started"
+ *                 slug: "getting-started"
+ *                 title: "Getting started"
+ *                 content: "Welcome to Digi Portal. Use the navigation to access features..."
+ *                 category: "general"
+ *     responses:
+ *       201:
+ *         description: Instruction created.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   $ref: '#/components/schemas/Instruction'
+ *       400:
+ *         description: Invalid request or validation failure.
+ *       401:
+ *         description: Unauthorized (missing/invalid JWT).
+ *       403:
+ *         description: Forbidden (insufficient role).
+ *       409:
+ *         description: Duplicate id or slug.
+ *   get:
+ *     tags: [Instructions]
+ *     summary: List instructions
+ *     description: Lists all stored instruction records (in-memory).
+ *     responses:
+ *       200:
+ *         description: Instructions list.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Instruction'
+ *                 count:
+ *                   type: integer
+ *                   example: 1
+ */
+router.post(
+  '/instructions',
+  verifyJwt,
+  requireRole(['admin', 'manager']),
+  (req, res) => instructionsController.create(req, res)
+);
+router.get('/instructions', (req, res) => instructionsController.list(req, res));
+
+/**
+ * @swagger
+ * /instructions/{id}:
+ *   get:
+ *     tags: [Instructions]
+ *     summary: Get an instruction
+ *     description: Gets a single instruction by id (in-memory).
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Instruction id to fetch.
+ *     responses:
+ *       200:
+ *         description: Instruction record.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   $ref: '#/components/schemas/Instruction'
+ *       404:
+ *         description: Instruction not found.
+ *   put:
+ *     tags: [Instructions]
+ *     summary: Replace an instruction (protected)
+ *     description: Replaces the full instruction record for the given id (in-memory). title and content are required. If id is present in the body, it must match the path parameter.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Instruction id to replace.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/Instruction'
+ *           examples:
+ *             replaceInstruction:
+ *               summary: Replace instruction content
+ *               value:
+ *                 id: "getting-started"
+ *                 slug: "getting-started"
+ *                 title: "Getting started (updated)"
+ *                 content: "Updated instructions..."
+ *                 category: "general"
+ *     responses:
+ *       200:
+ *         description: Instruction updated.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   $ref: '#/components/schemas/Instruction'
+ *       400:
+ *         description: Invalid request or validation failure.
+ *       401:
+ *         description: Unauthorized (missing/invalid JWT).
+ *       403:
+ *         description: Forbidden (insufficient role).
+ *       404:
+ *         description: Instruction not found.
+ *       409:
+ *         description: Duplicate slug.
+ *   patch:
+ *     tags: [Instructions]
+ *     summary: Partially update an instruction (protected)
+ *     description: Partially updates fields for the given id (in-memory). If id is present in the body, it must match the path parameter.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Instruction id to patch.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             description: Partial instruction fields to update.
+ *           examples:
+ *             patchTitle:
+ *               summary: Update title only
+ *               value:
+ *                 title: "Getting started (new title)"
+ *     responses:
+ *       200:
+ *         description: Instruction updated.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   $ref: '#/components/schemas/Instruction'
+ *       400:
+ *         description: Invalid request or validation failure.
+ *       401:
+ *         description: Unauthorized (missing/invalid JWT).
+ *       403:
+ *         description: Forbidden (insufficient role).
+ *       404:
+ *         description: Instruction not found.
+ *       409:
+ *         description: Duplicate slug.
+ *   delete:
+ *     tags: [Instructions]
+ *     summary: Delete an instruction (protected)
+ *     description: Deletes the instruction record for the given id (in-memory).
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Instruction id to delete.
+ *     responses:
+ *       204:
+ *         description: Instruction deleted.
+ *       401:
+ *         description: Unauthorized (missing/invalid JWT).
+ *       403:
+ *         description: Forbidden (insufficient role).
+ *       404:
+ *         description: Instruction not found.
+ */
+router.get('/instructions/:id', (req, res) => instructionsController.getById(req, res));
+router.put(
+  '/instructions/:id',
+  verifyJwt,
+  requireRole(['admin', 'manager']),
+  (req, res) => instructionsController.replace(req, res)
+);
+router.patch(
+  '/instructions/:id',
+  verifyJwt,
+  requireRole(['admin', 'manager']),
+  (req, res) => instructionsController.patch(req, res)
+);
+router.delete(
+  '/instructions/:id',
+  verifyJwt,
+  requireRole(['admin', 'manager']),
+  (req, res) => instructionsController.delete(req, res)
+);
 
 module.exports = router;
