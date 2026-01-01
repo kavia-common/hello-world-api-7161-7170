@@ -2,6 +2,7 @@ const express = require('express');
 
 const employeesController = require('../controllers/employees');
 const skillFactoriesController = require('../controllers/skillFactories');
+const learningPathsController = require('../controllers/learningPaths');
 
 const router = express.Router();
 
@@ -14,6 +15,8 @@ const router = express.Router();
  *     description: Employee record management (in-memory)
  *   - name: SkillFactories
  *     description: Skill Factory management (in-memory)
+ *   - name: LearningPaths
+ *     description: Learning Path management (in-memory)
  */
 
 /**
@@ -243,6 +246,62 @@ router.get('/hello', (req, res) => {
  *           description: Employees in this skill factory (each item includes rating/date/pool fields).
  *           items:
  *             $ref: '#/components/schemas/SkillFactoryEmployee'
+ *         createdAt:
+ *           type: string
+ *           description: Server timestamp when record was stored.
+ *           example: "2026-01-01T00:00:00.000Z"
+ *         updatedAt:
+ *           type: string
+ *           description: Server timestamp when record was last updated.
+ *           example: "2026-01-01T00:00:00.000Z"
+ *     LearningPath:
+ *       type: object
+ *       required:
+ *         - learningPathName
+ *         - courseLinks
+ *         - duration
+ *         - enrolledCount
+ *         - completedCount
+ *         - inProgressCount
+ *       properties:
+ *         learningPathName:
+ *           type: string
+ *           description: Unique Learning Path name/identifier.
+ *           example: "Cloud Fundamentals"
+ *         description:
+ *           type: string
+ *           description: Optional Learning Path description.
+ *           example: "Start-to-finish introduction to cloud concepts."
+ *         tags:
+ *           type: array
+ *           description: Optional tags to categorize the learning path.
+ *           items:
+ *             type: string
+ *           example: ["cloud", "foundations"]
+ *         courseLinks:
+ *           type: array
+ *           description: List of course links (URLs or internal references).
+ *           items:
+ *             type: string
+ *           example: ["https://example.com/course-1", "https://example.com/course-2"]
+ *         duration:
+ *           oneOf:
+ *             - type: number
+ *             - type: string
+ *           description: Duration of the learning path (e.g., hours as number, or a human-readable string).
+ *           example: "6h"
+ *         enrolledCount:
+ *           type: integer
+ *           description: Total number of enrolled learners.
+ *           example: 100
+ *         completedCount:
+ *           type: integer
+ *           description: Number of learners who completed the learning path.
+ *           example: 40
+ *         inProgressCount:
+ *           type: integer
+ *           description: Number of learners currently in progress.
+ *           example: 50
  *         createdAt:
  *           type: string
  *           description: Server timestamp when record was stored.
@@ -587,5 +646,159 @@ router.get('/skill-factories/:skillFactoryId', (req, res) => skillFactoriesContr
 router.put('/skill-factories/:skillFactoryId', (req, res) => skillFactoriesController.replace(req, res));
 router.patch('/skill-factories/:skillFactoryId', (req, res) => skillFactoriesController.patch(req, res));
 router.delete('/skill-factories/:skillFactoryId', (req, res) => skillFactoriesController.delete(req, res));
+
+/**
+ * @swagger
+ * /learningpaths:
+ *   post:
+ *     tags: [LearningPaths]
+ *     summary: Create a Learning Path record
+ *     description: Creates and stores a Learning Path record (in-memory). Requires learningPathName (unique), courseLinks (array), duration, and enrollment/completion/in-progress counts.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/LearningPath'
+ *     responses:
+ *       201:
+ *         description: Learning Path created.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   $ref: '#/components/schemas/LearningPath'
+ *       400:
+ *         description: Invalid request or validation failure.
+ *       409:
+ *         description: Duplicate learningPathName.
+ */
+router.post('/learningpaths', (req, res) => learningPathsController.create(req, res));
+
+/**
+ * @swagger
+ * /learningpaths:
+ *   get:
+ *     tags: [LearningPaths]
+ *     summary: List Learning Path records
+ *     description: Lists all stored Learning Path records (in-memory).
+ *     responses:
+ *       200:
+ *         description: Learning Paths list.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/LearningPath'
+ *                 count:
+ *                   type: integer
+ *                   example: 1
+ */
+router.get('/learningpaths', (req, res) => learningPathsController.list(req, res));
+
+/**
+ * @swagger
+ * /learningpaths/{learningPathName}:
+ *   put:
+ *     tags: [LearningPaths]
+ *     summary: Replace a Learning Path record
+ *     description: Replaces the full Learning Path record for the given learningPathName (in-memory). If learningPathName is present in the body, it must match the path parameter.
+ *     parameters:
+ *       - in: path
+ *         name: learningPathName
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Learning Path name to replace.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/LearningPath'
+ *     responses:
+ *       200:
+ *         description: Learning Path updated.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   $ref: '#/components/schemas/LearningPath'
+ *       400:
+ *         description: Invalid request or validation failure.
+ *       404:
+ *         description: Learning Path not found.
+ *   patch:
+ *     tags: [LearningPaths]
+ *     summary: Partially update a Learning Path record
+ *     description: Partially updates fields for the given learningPathName (in-memory). If learningPathName is present in the body, it must match the path parameter.
+ *     parameters:
+ *       - in: path
+ *         name: learningPathName
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Learning Path name to patch.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             description: Partial Learning Path fields to update.
+ *     responses:
+ *       200:
+ *         description: Learning Path updated.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   $ref: '#/components/schemas/LearningPath'
+ *       400:
+ *         description: Invalid request or validation failure.
+ *       404:
+ *         description: Learning Path not found.
+ *   delete:
+ *     tags: [LearningPaths]
+ *     summary: Delete a Learning Path record
+ *     description: Deletes the Learning Path record for the given learningPathName (in-memory).
+ *     parameters:
+ *       - in: path
+ *         name: learningPathName
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Learning Path name to delete.
+ *     responses:
+ *       204:
+ *         description: Learning Path deleted.
+ *       404:
+ *         description: Learning Path not found.
+ */
+router.put('/learningpaths/:learningPathName', (req, res) => learningPathsController.replace(req, res));
+router.patch('/learningpaths/:learningPathName', (req, res) => learningPathsController.patch(req, res));
+router.delete('/learningpaths/:learningPathName', (req, res) => learningPathsController.delete(req, res));
 
 module.exports = router;
