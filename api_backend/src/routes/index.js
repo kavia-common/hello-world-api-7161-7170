@@ -1,6 +1,7 @@
 const express = require('express');
 
 const employeesController = require('../controllers/employees');
+const skillFactoriesController = require('../controllers/skillFactories');
 
 const router = express.Router();
 
@@ -11,6 +12,8 @@ const router = express.Router();
  *     description: Hello World endpoint
  *   - name: Employees
  *     description: Employee record management (in-memory)
+ *   - name: SkillFactories
+ *     description: Skill Factory management (in-memory)
  */
 
 /**
@@ -137,6 +140,78 @@ router.get('/hello', (req, res) => {
  *         createdAt:
  *           type: string
  *           description: Server timestamp when record was stored.
+ *           example: "2026-01-01T00:00:00.000Z"
+ *     SkillFactoryEmployee:
+ *       type: object
+ *       required:
+ *         - employeeId
+ *         - employeeName
+ *         - email
+ *       properties:
+ *         employeeId:
+ *           type: string
+ *           description: Employee ID.
+ *           example: "E12345"
+ *         employeeName:
+ *           type: string
+ *           description: Employee name.
+ *           example: "Jane Doe"
+ *         email:
+ *           type: string
+ *           description: Employee email.
+ *           example: "jane.doe@example.com"
+ *     SkillFactory:
+ *       type: object
+ *       required:
+ *         - skillFactoryId
+ *         - skillFactoryName
+ *       properties:
+ *         skillFactoryId:
+ *           type: string
+ *           description: Unique Skill Factory ID.
+ *           example: "SF-PLATFORM-001"
+ *         skillFactoryName:
+ *           type: string
+ *           description: Skill Factory Name.
+ *           example: "Platform Engineering"
+ *         mentorNames:
+ *           type: array
+ *           description: Mentor names.
+ *           items:
+ *             type: string
+ *           example: ["Mentor A", "Mentor B"]
+ *         employees:
+ *           type: array
+ *           description: Employees in this skill factory.
+ *           items:
+ *             $ref: '#/components/schemas/SkillFactoryEmployee'
+ *         initialRating:
+ *           type: number
+ *           description: Initial rating (numeric).
+ *           example: 3.5
+ *         currentRating:
+ *           type: number
+ *           description: Current rating (numeric).
+ *           example: 4.2
+ *         startDate:
+ *           type: string
+ *           description: Start date (YYYY-MM-DD or ISO string).
+ *           example: "2026-01-01"
+ *         endDate:
+ *           type: string
+ *           description: End date (YYYY-MM-DD or ISO string). Must be >= startDate when both provided.
+ *           example: "2026-06-30"
+ *         isInPool:
+ *           type: boolean
+ *           description: Whether the skill factory is in pool.
+ *           example: true
+ *         createdAt:
+ *           type: string
+ *           description: Server timestamp when record was stored.
+ *           example: "2026-01-01T00:00:00.000Z"
+ *         updatedAt:
+ *           type: string
+ *           description: Server timestamp when record was last updated.
  *           example: "2026-01-01T00:00:00.000Z"
  */
 
@@ -293,5 +368,186 @@ router.get('/employees', (req, res) => employeesController.list(req, res));
 router.put('/employees/:employeeId', (req, res) => employeesController.replace(req, res));
 router.patch('/employees/:employeeId', (req, res) => employeesController.patch(req, res));
 router.delete('/employees/:employeeId', (req, res) => employeesController.delete(req, res));
+
+/**
+ * @swagger
+ * /skill-factories:
+ *   post:
+ *     tags: [SkillFactories]
+ *     summary: Create a Skill Factory record
+ *     description: Creates and stores a Skill Factory record (in-memory). Requires skillFactoryId and skillFactoryName.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/SkillFactory'
+ *     responses:
+ *       201:
+ *         description: Skill Factory created.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   $ref: '#/components/schemas/SkillFactory'
+ *       400:
+ *         description: Invalid request or validation failure.
+ *       409:
+ *         description: Duplicate skillFactoryId.
+ */
+router.post('/skill-factories', (req, res) => skillFactoriesController.create(req, res));
+
+/**
+ * @swagger
+ * /skill-factories:
+ *   get:
+ *     tags: [SkillFactories]
+ *     summary: List Skill Factory records
+ *     description: Lists all stored Skill Factory records (in-memory).
+ *     responses:
+ *       200:
+ *         description: Skill Factories list.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/SkillFactory'
+ *                 count:
+ *                   type: integer
+ *                   example: 1
+ */
+router.get('/skill-factories', (req, res) => skillFactoriesController.list(req, res));
+
+/**
+ * @swagger
+ * /skill-factories/{skillFactoryId}:
+ *   get:
+ *     tags: [SkillFactories]
+ *     summary: Get a Skill Factory record
+ *     description: Gets a Skill Factory record by skillFactoryId (in-memory).
+ *     parameters:
+ *       - in: path
+ *         name: skillFactoryId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Skill Factory ID to fetch.
+ *     responses:
+ *       200:
+ *         description: Skill Factory record.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   $ref: '#/components/schemas/SkillFactory'
+ *       404:
+ *         description: Skill Factory not found.
+ *   put:
+ *     tags: [SkillFactories]
+ *     summary: Replace a Skill Factory record
+ *     description: Replaces the full Skill Factory record for the given skillFactoryId (in-memory). skillFactoryName is required. If skillFactoryId is present in the body, it must match the path parameter.
+ *     parameters:
+ *       - in: path
+ *         name: skillFactoryId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Skill Factory ID to replace.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/SkillFactory'
+ *     responses:
+ *       200:
+ *         description: Skill Factory updated.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   $ref: '#/components/schemas/SkillFactory'
+ *       400:
+ *         description: Invalid request or validation failure.
+ *       404:
+ *         description: Skill Factory not found.
+ *   patch:
+ *     tags: [SkillFactories]
+ *     summary: Partially update a Skill Factory record
+ *     description: Partially updates fields for the given skillFactoryId (in-memory). Validates updated fields and date ordering. If skillFactoryId is present in the body, it must match the path parameter.
+ *     parameters:
+ *       - in: path
+ *         name: skillFactoryId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Skill Factory ID to patch.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             description: Partial Skill Factory fields to update.
+ *     responses:
+ *       200:
+ *         description: Skill Factory updated.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   $ref: '#/components/schemas/SkillFactory'
+ *       400:
+ *         description: Invalid request or validation failure.
+ *       404:
+ *         description: Skill Factory not found.
+ *   delete:
+ *     tags: [SkillFactories]
+ *     summary: Delete a Skill Factory record
+ *     description: Deletes the Skill Factory record for the given skillFactoryId (in-memory).
+ *     parameters:
+ *       - in: path
+ *         name: skillFactoryId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Skill Factory ID to delete.
+ *     responses:
+ *       204:
+ *         description: Skill Factory deleted.
+ *       404:
+ *         description: Skill Factory not found.
+ */
+router.get('/skill-factories/:skillFactoryId', (req, res) => skillFactoriesController.getById(req, res));
+router.put('/skill-factories/:skillFactoryId', (req, res) => skillFactoriesController.replace(req, res));
+router.patch('/skill-factories/:skillFactoryId', (req, res) => skillFactoriesController.patch(req, res));
+router.delete('/skill-factories/:skillFactoryId', (req, res) => skillFactoriesController.delete(req, res));
 
 module.exports = router;
