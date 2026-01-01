@@ -929,8 +929,10 @@ router.delete(
  * /skill-factories:
  *   post:
  *     tags: [SkillFactories]
- *     summary: Create a Skill Factory record
+ *     summary: Create a Skill Factory record (protected)
  *     description: Creates and stores a Skill Factory record (in-memory). Requires skillFactoryId and skillFactoryName.
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -952,10 +954,19 @@ router.delete(
  *                   $ref: '#/components/schemas/SkillFactory'
  *       400:
  *         description: Invalid request or validation failure.
+ *       401:
+ *         description: Unauthorized (missing/invalid JWT).
+ *       403:
+ *         description: Forbidden (insufficient role).
  *       409:
  *         description: Duplicate skillFactoryId.
  */
-router.post('/skill-factories', (req, res) => skillFactoriesController.create(req, res));
+router.post(
+  '/skill-factories',
+  verifyJwt,
+  requireRole(['admin', 'manager']),
+  (req, res) => skillFactoriesController.create(req, res)
+);
 
 /**
  * @swagger
@@ -1016,8 +1027,10 @@ router.get('/skill-factories', (req, res) => skillFactoriesController.list(req, 
  *         description: Skill Factory not found.
  *   put:
  *     tags: [SkillFactories]
- *     summary: Replace a Skill Factory record
+ *     summary: Replace a Skill Factory record (protected)
  *     description: Replaces the full Skill Factory record for the given skillFactoryId (in-memory). skillFactoryName is required. If skillFactoryId is present in the body, it must match the path parameter.
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: skillFactoryId
@@ -1046,12 +1059,18 @@ router.get('/skill-factories', (req, res) => skillFactoriesController.list(req, 
  *                   $ref: '#/components/schemas/SkillFactory'
  *       400:
  *         description: Invalid request or validation failure.
+ *       401:
+ *         description: Unauthorized (missing/invalid JWT).
+ *       403:
+ *         description: Forbidden (insufficient role).
  *       404:
  *         description: Skill Factory not found.
  *   patch:
  *     tags: [SkillFactories]
- *     summary: Partially update a Skill Factory record
+ *     summary: Partially update a Skill Factory record (protected)
  *     description: Partially updates fields for the given skillFactoryId (in-memory). Validates updated fields and date ordering. If skillFactoryId is present in the body, it must match the path parameter.
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: skillFactoryId
@@ -1081,12 +1100,18 @@ router.get('/skill-factories', (req, res) => skillFactoriesController.list(req, 
  *                   $ref: '#/components/schemas/SkillFactory'
  *       400:
  *         description: Invalid request or validation failure.
+ *       401:
+ *         description: Unauthorized (missing/invalid JWT).
+ *       403:
+ *         description: Forbidden (insufficient role).
  *       404:
  *         description: Skill Factory not found.
  *   delete:
  *     tags: [SkillFactories]
- *     summary: Delete a Skill Factory record
+ *     summary: Delete a Skill Factory record (protected)
  *     description: Deletes the Skill Factory record for the given skillFactoryId (in-memory).
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: skillFactoryId
@@ -1097,21 +1122,42 @@ router.get('/skill-factories', (req, res) => skillFactoriesController.list(req, 
  *     responses:
  *       204:
  *         description: Skill Factory deleted.
+ *       401:
+ *         description: Unauthorized (missing/invalid JWT).
+ *       403:
+ *         description: Forbidden (insufficient role).
  *       404:
  *         description: Skill Factory not found.
  */
 router.get('/skill-factories/:skillFactoryId', (req, res) => skillFactoriesController.getById(req, res));
-router.put('/skill-factories/:skillFactoryId', (req, res) => skillFactoriesController.replace(req, res));
-router.patch('/skill-factories/:skillFactoryId', (req, res) => skillFactoriesController.patch(req, res));
-router.delete('/skill-factories/:skillFactoryId', (req, res) => skillFactoriesController.delete(req, res));
+router.put(
+  '/skill-factories/:skillFactoryId',
+  verifyJwt,
+  requireRole(['admin', 'manager']),
+  (req, res) => skillFactoriesController.replace(req, res)
+);
+router.patch(
+  '/skill-factories/:skillFactoryId',
+  verifyJwt,
+  requireRole(['admin', 'manager']),
+  (req, res) => skillFactoriesController.patch(req, res)
+);
+router.delete(
+  '/skill-factories/:skillFactoryId',
+  verifyJwt,
+  requireRole(['admin', 'manager']),
+  (req, res) => skillFactoriesController.delete(req, res)
+);
 
 /**
  * @swagger
  * /learningpaths:
  *   post:
  *     tags: [LearningPaths]
- *     summary: Create a Learning Path record
+ *     summary: Create a Learning Path record (protected)
  *     description: Creates and stores a Learning Path record (in-memory). Requires learningPathName (unique), courseLinks (array), duration, and enrollment/completion/in-progress counts.
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -1133,10 +1179,19 @@ router.delete('/skill-factories/:skillFactoryId', (req, res) => skillFactoriesCo
  *                   $ref: '#/components/schemas/LearningPath'
  *       400:
  *         description: Invalid request or validation failure.
+ *       401:
+ *         description: Unauthorized (missing/invalid JWT).
+ *       403:
+ *         description: Forbidden (insufficient role).
  *       409:
  *         description: Duplicate learningPathName.
  */
-router.post('/learningpaths', (req, res) => learningPathsController.create(req, res));
+router.post(
+  '/learningpaths',
+  verifyJwt,
+  requireRole(['admin', 'manager']),
+  (req, res) => learningPathsController.create(req, res)
+);
 
 /**
  * @swagger
@@ -1171,8 +1226,10 @@ router.get('/learningpaths', (req, res) => learningPathsController.list(req, res
  * /learningpaths/{learningPathName}:
  *   put:
  *     tags: [LearningPaths]
- *     summary: Replace a Learning Path record
+ *     summary: Replace a Learning Path record (protected)
  *     description: Replaces the full Learning Path record for the given learningPathName (in-memory). If learningPathName is present in the body, it must match the path parameter.
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: learningPathName
@@ -1201,12 +1258,18 @@ router.get('/learningpaths', (req, res) => learningPathsController.list(req, res
  *                   $ref: '#/components/schemas/LearningPath'
  *       400:
  *         description: Invalid request or validation failure.
+ *       401:
+ *         description: Unauthorized (missing/invalid JWT).
+ *       403:
+ *         description: Forbidden (insufficient role).
  *       404:
  *         description: Learning Path not found.
  *   patch:
  *     tags: [LearningPaths]
- *     summary: Partially update a Learning Path record
+ *     summary: Partially update a Learning Path record (protected)
  *     description: Partially updates fields for the given learningPathName (in-memory). If learningPathName is present in the body, it must match the path parameter.
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: learningPathName
@@ -1236,12 +1299,18 @@ router.get('/learningpaths', (req, res) => learningPathsController.list(req, res
  *                   $ref: '#/components/schemas/LearningPath'
  *       400:
  *         description: Invalid request or validation failure.
+ *       401:
+ *         description: Unauthorized (missing/invalid JWT).
+ *       403:
+ *         description: Forbidden (insufficient role).
  *       404:
  *         description: Learning Path not found.
  *   delete:
  *     tags: [LearningPaths]
- *     summary: Delete a Learning Path record
+ *     summary: Delete a Learning Path record (protected)
  *     description: Deletes the Learning Path record for the given learningPathName (in-memory).
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: learningPathName
@@ -1252,20 +1321,41 @@ router.get('/learningpaths', (req, res) => learningPathsController.list(req, res
  *     responses:
  *       204:
  *         description: Learning Path deleted.
+ *       401:
+ *         description: Unauthorized (missing/invalid JWT).
+ *       403:
+ *         description: Forbidden (insufficient role).
  *       404:
  *         description: Learning Path not found.
  */
-router.put('/learningpaths/:learningPathName', (req, res) => learningPathsController.replace(req, res));
-router.patch('/learningpaths/:learningPathName', (req, res) => learningPathsController.patch(req, res));
-router.delete('/learningpaths/:learningPathName', (req, res) => learningPathsController.delete(req, res));
+router.put(
+  '/learningpaths/:learningPathName',
+  verifyJwt,
+  requireRole(['admin', 'manager']),
+  (req, res) => learningPathsController.replace(req, res)
+);
+router.patch(
+  '/learningpaths/:learningPathName',
+  verifyJwt,
+  requireRole(['admin', 'manager']),
+  (req, res) => learningPathsController.patch(req, res)
+);
+router.delete(
+  '/learningpaths/:learningPathName',
+  verifyJwt,
+  requireRole(['admin', 'manager']),
+  (req, res) => learningPathsController.delete(req, res)
+);
 
 /**
  * @swagger
  * /assessments:
  *   post:
  *     tags: [Assessments]
- *     summary: Create an assessment record
+ *     summary: Create an assessment record (protected)
  *     description: Creates and stores an assessment record (in-memory). Requires assessmentId and title.
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -1287,6 +1377,10 @@ router.delete('/learningpaths/:learningPathName', (req, res) => learningPathsCon
  *                   $ref: '#/components/schemas/Assessment'
  *       400:
  *         description: Invalid request or validation failure.
+ *       401:
+ *         description: Unauthorized (missing/invalid JWT).
+ *       403:
+ *         description: Forbidden (insufficient role).
  *       409:
  *         description: Duplicate assessmentId.
  *   get:
@@ -1312,7 +1406,12 @@ router.delete('/learningpaths/:learningPathName', (req, res) => learningPathsCon
  *                   type: integer
  *                   example: 1
  */
-router.post('/assessments', (req, res) => assessmentsController.create(req, res));
+router.post(
+  '/assessments',
+  verifyJwt,
+  requireRole(['admin', 'manager']),
+  (req, res) => assessmentsController.create(req, res)
+);
 router.get('/assessments', (req, res) => assessmentsController.list(req, res));
 
 /**
@@ -1346,8 +1445,10 @@ router.get('/assessments', (req, res) => assessmentsController.list(req, res));
  *         description: Assessment not found.
  *   put:
  *     tags: [Assessments]
- *     summary: Replace an assessment record
+ *     summary: Replace an assessment record (protected)
  *     description: Replaces the full assessment record for the given assessmentId (in-memory). title is required. If assessmentId is present in the body, it must match the path parameter.
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: assessmentId
@@ -1376,12 +1477,18 @@ router.get('/assessments', (req, res) => assessmentsController.list(req, res));
  *                   $ref: '#/components/schemas/Assessment'
  *       400:
  *         description: Invalid request or validation failure.
+ *       401:
+ *         description: Unauthorized (missing/invalid JWT).
+ *       403:
+ *         description: Forbidden (insufficient role).
  *       404:
  *         description: Assessment not found.
  *   patch:
  *     tags: [Assessments]
- *     summary: Partially update an assessment record
+ *     summary: Partially update an assessment record (protected)
  *     description: Partially updates fields for the given assessmentId (in-memory). Validates updated fields. If assessmentId is present in the body, it must match the path parameter.
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: assessmentId
@@ -1411,12 +1518,18 @@ router.get('/assessments', (req, res) => assessmentsController.list(req, res));
  *                   $ref: '#/components/schemas/Assessment'
  *       400:
  *         description: Invalid request or validation failure.
+ *       401:
+ *         description: Unauthorized (missing/invalid JWT).
+ *       403:
+ *         description: Forbidden (insufficient role).
  *       404:
  *         description: Assessment not found.
  *   delete:
  *     tags: [Assessments]
- *     summary: Delete an assessment record
+ *     summary: Delete an assessment record (protected)
  *     description: Deletes the assessment record for the given assessmentId (in-memory).
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: assessmentId
@@ -1427,13 +1540,32 @@ router.get('/assessments', (req, res) => assessmentsController.list(req, res));
  *     responses:
  *       204:
  *         description: Assessment deleted.
+ *       401:
+ *         description: Unauthorized (missing/invalid JWT).
+ *       403:
+ *         description: Forbidden (insufficient role).
  *       404:
  *         description: Assessment not found.
  */
 router.get('/assessments/:assessmentId', (req, res) => assessmentsController.getById(req, res));
-router.put('/assessments/:assessmentId', (req, res) => assessmentsController.replace(req, res));
-router.patch('/assessments/:assessmentId', (req, res) => assessmentsController.patch(req, res));
-router.delete('/assessments/:assessmentId', (req, res) => assessmentsController.delete(req, res));
+router.put(
+  '/assessments/:assessmentId',
+  verifyJwt,
+  requireRole(['admin', 'manager']),
+  (req, res) => assessmentsController.replace(req, res)
+);
+router.patch(
+  '/assessments/:assessmentId',
+  verifyJwt,
+  requireRole(['admin', 'manager']),
+  (req, res) => assessmentsController.patch(req, res)
+);
+router.delete(
+  '/assessments/:assessmentId',
+  verifyJwt,
+  requireRole(['admin', 'manager']),
+  (req, res) => assessmentsController.delete(req, res)
+);
 
 /**
  * @swagger
