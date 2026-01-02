@@ -1,3 +1,5 @@
+'use strict';
+
 const healthService = require('../services/health');
 
 class HealthController {
@@ -7,4 +9,9 @@ class HealthController {
   }
 }
 
-module.exports = new HealthController();
+const controller = new HealthController();
+
+// Backward-compatible alias expected by routes/index.js
+controller.getHealth = controller.check.bind(controller);
+
+module.exports = controller;

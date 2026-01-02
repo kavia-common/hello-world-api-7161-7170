@@ -524,4 +524,14 @@ class AnnouncementsController {
   }
 }
 
-module.exports = new AnnouncementsController();
+const controller = new AnnouncementsController();
+
+// Backward-compatible aliases expected by routes/index.js
+controller.listAnnouncements = controller.list.bind(controller);
+controller.getAnnouncementById = controller.getById.bind(controller);
+controller.createAnnouncement = controller.create.bind(controller);
+controller.replaceAnnouncement = controller.replace.bind(controller);
+controller.patchAnnouncement = controller.patch.bind(controller);
+controller.deleteAnnouncement = controller.delete.bind(controller);
+
+module.exports = controller;

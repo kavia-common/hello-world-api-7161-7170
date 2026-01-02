@@ -493,4 +493,13 @@ class EmployeesController {
   }
 }
 
-module.exports = new EmployeesController();
+const controller = new EmployeesController();
+
+// Backward-compatible aliases expected by routes/index.js
+controller.listEmployees = controller.list.bind(controller);
+controller.createEmployee = controller.create.bind(controller);
+controller.replaceEmployee = controller.replace.bind(controller);
+controller.patchEmployee = controller.patch.bind(controller);
+controller.deleteEmployee = controller.delete.bind(controller);
+
+module.exports = controller;

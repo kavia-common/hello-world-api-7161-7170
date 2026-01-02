@@ -621,4 +621,14 @@ class SkillFactoriesController {
   }
 }
 
-module.exports = new SkillFactoriesController();
+const controller = new SkillFactoriesController();
+
+// Backward-compatible aliases expected by routes/index.js
+controller.listSkillFactories = controller.list.bind(controller);
+controller.getSkillFactoryById = controller.getById.bind(controller);
+controller.createSkillFactory = controller.create.bind(controller);
+controller.replaceSkillFactory = controller.replace.bind(controller);
+controller.patchSkillFactory = controller.patch.bind(controller);
+controller.deleteSkillFactory = controller.delete.bind(controller);
+
+module.exports = controller;

@@ -598,4 +598,14 @@ class AssessmentsController {
   }
 }
 
-module.exports = new AssessmentsController();
+const controller = new AssessmentsController();
+
+// Backward-compatible aliases expected by routes/index.js
+controller.listAssessments = controller.list.bind(controller);
+controller.getAssessmentById = controller.getById.bind(controller);
+controller.createAssessment = controller.create.bind(controller);
+controller.replaceAssessment = controller.replace.bind(controller);
+controller.patchAssessment = controller.patch.bind(controller);
+controller.deleteAssessment = controller.delete.bind(controller);
+
+module.exports = controller;

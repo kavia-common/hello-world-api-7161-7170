@@ -342,4 +342,11 @@ class MetricsController {
   }
 }
 
-module.exports = new MetricsController();
+const controller = new MetricsController();
+
+// Backward-compatible aliases expected by routes/index.js and controllers/backup.js
+controller.getSummary = controller.summary.bind(controller);
+controller.getLearningPathsMetrics = controller.learningPaths.bind(controller);
+controller.getSkillFactoriesMetrics = controller.skillFactories.bind(controller);
+
+module.exports = controller;

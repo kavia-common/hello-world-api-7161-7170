@@ -417,5 +417,15 @@ class InstructionsController {
   }
 }
 
-module.exports = new InstructionsController();
+const controller = new InstructionsController();
+
+// Backward-compatible aliases expected by routes/index.js
+controller.listInstructions = controller.list.bind(controller);
+controller.getInstructionById = controller.getById.bind(controller);
+controller.createInstruction = controller.create.bind(controller);
+controller.replaceInstruction = controller.replace.bind(controller);
+controller.patchInstruction = controller.patch.bind(controller);
+controller.deleteInstruction = controller.delete.bind(controller);
+
+module.exports = controller;
 

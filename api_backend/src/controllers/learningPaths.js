@@ -564,4 +564,13 @@ class LearningPathsController {
   }
 }
 
-module.exports = new LearningPathsController();
+const controller = new LearningPathsController();
+
+// Backward-compatible aliases expected by routes/index.js
+controller.listLearningPaths = controller.list.bind(controller);
+controller.createLearningPath = controller.create.bind(controller);
+controller.replaceLearningPath = controller.replace.bind(controller);
+controller.patchLearningPath = controller.patch.bind(controller);
+controller.deleteLearningPath = controller.delete.bind(controller);
+
+module.exports = controller;
