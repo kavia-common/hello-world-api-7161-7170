@@ -1,5 +1,9 @@
 'use strict';
 
+// Load environment variables from .env as early as possible in process startup.
+// This MUST run before importing modules that read from process.env (e.g., Mongo/JWT config).
+require('dotenv').config();
+
 const app = require('./app');
 const { connectMongo, disconnectMongo } = require('./db/mongodb');
 
