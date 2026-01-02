@@ -25,7 +25,14 @@ const options = {
       },
     },
   },
-  apis: ['./src/routes/*.js'],
+
+  /**
+   * IMPORTANT:
+   * We must scan the actual router entrypoint (src/routes/index.js) plus controllers
+   * that contain OpenAPI JSDoc blocks. Otherwise swagger-ui shows:
+   * "No operations defined in spec!"
+   */
+  apis: ['./src/routes/index.js', './src/controllers/*.js', './src/routes/*.js'],
 };
 
 const swaggerSpec = swaggerJSDoc(options);
