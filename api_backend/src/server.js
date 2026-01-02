@@ -2,7 +2,8 @@
 
 const app = require('./app');
 
-const PORT = Number(process.env.PORT ?? 3001) || 3001;
+const DEFAULT_PORT = 3002;
+const PORT = Number(process.env.PORT ?? DEFAULT_PORT) || DEFAULT_PORT;
 const HOST = process.env.HOST ?? '0.0.0.0';
 
 /**
@@ -10,7 +11,7 @@ const HOST = process.env.HOST ?? '0.0.0.0';
  * Starts the HTTP server for the minimal Digi Portal API.
  *
  * Environment variables:
- * - PORT (optional): defaults to 3001
+ * - PORT (optional): defaults to 3002
  * - HOST (optional): defaults to 0.0.0.0
  *
  * Note: This service runs without any required database configuration.
@@ -19,8 +20,8 @@ const HOST = process.env.HOST ?? '0.0.0.0';
  */
 async function start() {
   // Explicitly bind host+port so container networking is reliable.
-  const server = app.listen(Number(PORT) || 3001, HOST || '0.0.0.0', () => {
-    console.log(`Server running at http://${HOST || '0.0.0.0'}:${Number(PORT) || 3001}`);
+  const server = app.listen(PORT, HOST, () => {
+    console.log(`Server running at http://${HOST}:${PORT}`);
   });
 
   const shutdown = async (signal) => {
