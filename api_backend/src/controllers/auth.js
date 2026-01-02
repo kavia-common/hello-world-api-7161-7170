@@ -161,16 +161,36 @@ async function login(req, res) {
     const normalizedUsername = username.trim();
     const user = await usersStore.findByUsername(normalizedUsername);
 
-    // Intentionally return same response for "not found" and "wrong password"
-    // to avoid leaking whether a username exists.
-    if (!user || typeof user.passwordHash !== 'string') {
+    // Defensive checks:
+    // - Always return a generic 401 for "not found" / "no passwordHash" / "wrong password"
+    //   to avoid leaking whether a username exists.
+    // - Only call bcrypt.compare with strings; skip compare if passwordHash is missing/falsy.
+    if (!user) {
       return res.status(401).json({
         status: 'error',
         message: INVALID_CREDENTIALS_MESSAGE,
       });
     }
 
-    const ok = await bcrypt.compare(password, user.passwordHash);
+    const passwordHash = user.passwordHash;
+
+    // Treat null/undefined/empty/non-string passwordHash as invalid credentials (not a server error).
+    if (typeof passwordHash !== 'string' || passwordHash.trim().length === 0) {
+      return res.status(401).json({
+        status: 'error',
+        message: INVALID_CREDENTIALS_MESSAGE,
+      });
+    }
+
+    let ok = false;
+    try {
+      ok = await bcrypt.compare(password, passwordHash);
+    } catch (compareErr) {
+      // bcrypt can throw if inputs are unexpected/corrupted; do not leak details.
+      console.error('Login bcrypt.compare failed:', compareErr);
+      ok = false;
+    }
+
     if (!ok) {
       return res.status(401).json({
         status: 'error',
@@ -181,11 +201,15 @@ async function login(req, res) {
     const userSummary = { username: user.username, role: user.role };
     const token = signAuthToken(userSummary);
 
+    // Preserve successful response shape exactly.
     return res.status(200).json({
       token,
       user: userSummary,
     });
   } catch (err) {
+    // Log internally for debugging, but keep responses generic to avoid leaking sensitive info.
+    console.error('Login unexpected error:', err);
+
     // Missing JWT config or similar -> 500 (server issue, not client)
     if (err && err.code === 'CONFIG_ERROR') {
       return res.status(500).json({
