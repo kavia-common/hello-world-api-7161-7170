@@ -25,7 +25,6 @@ async function start() {
   const shutdown = async (signal) => {
     try {
       console.log(`${signal} signal received: closing HTTP server`);
-
       await new Promise((resolve) => server.close(resolve));
       console.log('HTTP server closed');
       process.exit(0);

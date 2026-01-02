@@ -160,16 +160,6 @@ Expected response:
 
 - Status `204` on success, or `404` if not found.
 
-## Backups (in-memory)
-
-Backups are snapshots of the in-memory stores. They reset on server restart.
-
-Manual endpoints:
-
-- `POST /backup` (protected: admin/manager): creates a backup snapshot
-- `GET /backup` (public): lists backups
-- `GET /backup/:id` (public): fetches a backup snapshot
-
 ## API documentation (Swagger UI)
 
 Swagger UI is served at:
