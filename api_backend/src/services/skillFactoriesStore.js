@@ -1,58 +1,26 @@
 'use strict';
 
-/**
- * Simple in-memory Skill Factory store.
- *
- * Notes:
- * - Data is reset whenever the server restarts.
- * - This module mirrors the employeesStore async API style so controllers can remain simple.
- * - The SkillFactory schema is enforced in controllers; the store keeps records as provided.
- */
+const SkillFactory = require('../db/models/SkillFactory');
+const { mapMongoError } = require('../db/mongoErrors');
 
-/** @type {Map<string, any>} */
-const skillFactoriesById = new Map();
-
-/**
- * Normalizes timestamps to ISO strings for API responses.
- *
- * @param {object} record Skill Factory record
- * @returns {object} Normalized record
- */
 function normalizeForApi(record) {
   if (!record || typeof record !== 'object') return record;
-
-  const createdAt =
-    record.createdAt instanceof Date
-      ? record.createdAt.toISOString()
-      : typeof record.createdAt === 'string'
-        ? record.createdAt
-        : undefined;
-
-  const updatedAt =
-    record.updatedAt instanceof Date
-      ? record.updatedAt.toISOString()
-      : typeof record.updatedAt === 'string'
-        ? record.updatedAt
-        : undefined;
-
-  const result = { ...record };
-  if (createdAt) result.createdAt = createdAt;
-  if (updatedAt) result.updatedAt = updatedAt;
-
-  return result;
+  const obj = typeof record.toJSON === 'function' ? record.toJSON() : { ...record };
+  if (obj.createdAt instanceof Date) obj.createdAt = obj.createdAt.toISOString();
+  if (obj.updatedAt instanceof Date) obj.updatedAt = obj.updatedAt.toISOString();
+  return obj;
 }
 
 /**
  * PUBLIC_INTERFACE
- * Creates and stores a Skill Factory record in-memory.
+ * Creates and stores a Skill Factory record.
  *
  * @param {object} record Skill Factory record to store
  * @returns {Promise<object>} Stored record
  * @throws {Error} If a record with the same skillFactoryId already exists.
  */
 async function createSkillFactory(record) {
-  const skillFactoryId =
-    record && typeof record.skillFactoryId === 'string' ? record.skillFactoryId : undefined;
+  const skillFactoryId = record && typeof record.skillFactoryId === 'string' ? record.skillFactoryId : undefined;
 
   if (!skillFactoryId) {
     const err = new Error('skillFactoryId is required.');
@@ -60,22 +28,12 @@ async function createSkillFactory(record) {
     throw err;
   }
 
-  if (skillFactoriesById.has(skillFactoryId)) {
-    const err = new Error('Skill Factory with this skillFactoryId already exists.');
-    err.code = 'DUPLICATE_SKILL_FACTORY_ID';
-    throw err;
+  try {
+    const created = await SkillFactory.create({ ...record, skillFactoryId });
+    return normalizeForApi(created);
+  } catch (err) {
+    throw mapMongoError(err, 'DUPLICATE_SKILL_FACTORY_ID', 'Skill Factory with this skillFactoryId already exists.');
   }
-
-  const now = new Date();
-  const stored = {
-    ...record,
-    skillFactoryId,
-    createdAt: now.toISOString(),
-    updatedAt: now.toISOString(),
-  };
-
-  skillFactoriesById.set(skillFactoryId, stored);
-  return normalizeForApi(stored);
 }
 
 /**
@@ -85,7 +43,8 @@ async function createSkillFactory(record) {
  * @returns {Promise<object[]>} Array of records
  */
 async function listSkillFactories() {
-  return Array.from(skillFactoriesById.values()).map(normalizeForApi);
+  const docs = await SkillFactory.find({}, { _id: 0 }).lean();
+  return docs.map(normalizeForApi);
 }
 
 /**
@@ -96,35 +55,37 @@ async function listSkillFactories() {
  * @returns {Promise<object|undefined>} Record if found, otherwise undefined.
  */
 async function getSkillFactoryById(skillFactoryId) {
-  const record = skillFactoriesById.get(skillFactoryId);
-  if (!record) return undefined;
-  return normalizeForApi(record);
+  if (typeof skillFactoryId !== 'string' || skillFactoryId.trim().length === 0) return undefined;
+  const doc = await SkillFactory.findOne({ skillFactoryId: skillFactoryId.trim() }, { _id: 0 }).lean();
+  return doc ? normalizeForApi(doc) : undefined;
 }
 
 /**
  * PUBLIC_INTERFACE
  * Replaces an existing Skill Factory record by id.
  *
- * Preserves the original createdAt.
+ * Preserves createdAt.
  *
  * @param {string} skillFactoryId Skill Factory ID to replace.
  * @param {object} replacement Replacement record.
  * @returns {Promise<object|undefined>} Updated record if found, otherwise undefined.
  */
 async function replaceSkillFactory(skillFactoryId, replacement) {
-  const existing = skillFactoriesById.get(skillFactoryId);
+  if (typeof skillFactoryId !== 'string' || skillFactoryId.trim().length === 0) return undefined;
+
+  const existing = await SkillFactory.findOne({ skillFactoryId: skillFactoryId.trim() }).lean();
   if (!existing) return undefined;
 
-  const now = new Date();
-  const updated = {
-    ...replacement,
-    skillFactoryId,
-    createdAt: existing.createdAt,
-    updatedAt: now.toISOString(),
-  };
-
-  skillFactoriesById.set(skillFactoryId, updated);
-  return normalizeForApi(updated);
+  try {
+    const updated = await SkillFactory.findOneAndUpdate(
+      { skillFactoryId: skillFactoryId.trim() },
+      { ...replacement, skillFactoryId: skillFactoryId.trim(), createdAt: existing.createdAt },
+      { new: true, runValidators: false }
+    );
+    return updated ? normalizeForApi(updated) : undefined;
+  } catch (err) {
+    throw mapMongoError(err, 'DUPLICATE_SKILL_FACTORY_ID', 'Skill Factory with this skillFactoryId already exists.');
+  }
 }
 
 /**
@@ -136,24 +97,18 @@ async function replaceSkillFactory(skillFactoryId, replacement) {
  * @returns {Promise<object|undefined>} Updated record if found, otherwise undefined.
  */
 async function patchSkillFactory(skillFactoryId, patch) {
-  const existing = skillFactoriesById.get(skillFactoryId);
-  if (!existing) return undefined;
+  if (typeof skillFactoryId !== 'string' || skillFactoryId.trim().length === 0) return undefined;
 
   const safePatch = { ...(patch || {}) };
-  // Prevent accidental id overwrite
   if ('skillFactoryId' in safePatch) delete safePatch.skillFactoryId;
 
-  const now = new Date();
-  const updated = {
-    ...existing,
-    ...safePatch,
-    skillFactoryId,
-    createdAt: existing.createdAt,
-    updatedAt: now.toISOString(),
-  };
+  const updated = await SkillFactory.findOneAndUpdate(
+    { skillFactoryId: skillFactoryId.trim() },
+    { $set: safePatch },
+    { new: true, runValidators: false }
+  );
 
-  skillFactoriesById.set(skillFactoryId, updated);
-  return normalizeForApi(updated);
+  return updated ? normalizeForApi(updated) : undefined;
 }
 
 /**
@@ -164,17 +119,19 @@ async function patchSkillFactory(skillFactoryId, patch) {
  * @returns {Promise<boolean>} True if deleted; false if not found.
  */
 async function deleteSkillFactory(skillFactoryId) {
-  return skillFactoriesById.delete(skillFactoryId);
+  if (typeof skillFactoryId !== 'string' || skillFactoryId.trim().length === 0) return false;
+  const res = await SkillFactory.deleteOne({ skillFactoryId: skillFactoryId.trim() });
+  return (res.deletedCount || 0) > 0;
 }
 
 /**
  * PUBLIC_INTERFACE
- * Clears all skill factories from the in-memory store.
+ * Clears all skill factories from the store.
  *
  * @returns {Promise<void>} resolves when cleared
  */
 async function clearAll() {
-  skillFactoriesById.clear();
+  await SkillFactory.deleteMany({});
 }
 
 module.exports = {

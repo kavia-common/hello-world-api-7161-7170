@@ -6,7 +6,7 @@ const options = {
     info: {
       title: 'Digi Portal API',
       version: '1.0.0',
-      description: 'A minimal Express API that returns Hello World.',
+      description: 'Digi Portal API (Express) with MongoDB persistence for core resources and file-based JSON backups.',
     },
     /**
      * Components are defined here so swagger-jsdoc merges them with the JSDoc-defined

@@ -1,50 +1,19 @@
 'use strict';
 
-/**
- * Simple in-memory Learning Paths store.
- *
- * Notes:
- * - Data is reset whenever the server restarts.
- * - This module mirrors the employeesStore/skillFactoriesStore async API style.
- * - Controllers enforce validation; store enforces uniqueness by `learningPathName`.
- */
+const LearningPath = require('../db/models/LearningPath');
+const { mapMongoError } = require('../db/mongoErrors');
 
-/** @type {Map<string, any>} */
-const learningPathsByName = new Map();
-
-/**
- * Normalizes timestamps to ISO strings for API responses.
- *
- * @param {object} record Learning Path record
- * @returns {object} Normalized record
- */
 function normalizeForApi(record) {
   if (!record || typeof record !== 'object') return record;
-
-  const createdAt =
-    record.createdAt instanceof Date
-      ? record.createdAt.toISOString()
-      : typeof record.createdAt === 'string'
-        ? record.createdAt
-        : undefined;
-
-  const updatedAt =
-    record.updatedAt instanceof Date
-      ? record.updatedAt.toISOString()
-      : typeof record.updatedAt === 'string'
-        ? record.updatedAt
-        : undefined;
-
-  const result = { ...record };
-  if (createdAt) result.createdAt = createdAt;
-  if (updatedAt) result.updatedAt = updatedAt;
-
-  return result;
+  const obj = typeof record.toJSON === 'function' ? record.toJSON() : { ...record };
+  if (obj.createdAt instanceof Date) obj.createdAt = obj.createdAt.toISOString();
+  if (obj.updatedAt instanceof Date) obj.updatedAt = obj.updatedAt.toISOString();
+  return obj;
 }
 
 /**
  * PUBLIC_INTERFACE
- * Creates and stores a Learning Path record in-memory.
+ * Creates and stores a Learning Path record.
  *
  * Enforces uniqueness by `learningPathName`.
  *
@@ -62,22 +31,16 @@ async function createLearningPath(record) {
     throw err;
   }
 
-  if (learningPathsByName.has(learningPathName)) {
-    const err = new Error('Learning Path with this learningPathName already exists.');
-    err.code = 'DUPLICATE_LEARNING_PATH_NAME';
-    throw err;
+  try {
+    const created = await LearningPath.create({ ...record, learningPathName });
+    return normalizeForApi(created);
+  } catch (err) {
+    throw mapMongoError(
+      err,
+      'DUPLICATE_LEARNING_PATH_NAME',
+      'Learning Path with this learningPathName already exists.'
+    );
   }
-
-  const now = new Date();
-  const stored = {
-    ...record,
-    learningPathName,
-    createdAt: now.toISOString(),
-    updatedAt: now.toISOString(),
-  };
-
-  learningPathsByName.set(learningPathName, stored);
-  return normalizeForApi(stored);
 }
 
 /**
@@ -87,7 +50,8 @@ async function createLearningPath(record) {
  * @returns {Promise<object[]>} Array of records
  */
 async function listLearningPaths() {
-  return Array.from(learningPathsByName.values()).map(normalizeForApi);
+  const docs = await LearningPath.find({}, { _id: 0 }).lean();
+  return docs.map(normalizeForApi);
 }
 
 /**
@@ -98,9 +62,9 @@ async function listLearningPaths() {
  * @returns {Promise<object|undefined>} Record if found; otherwise undefined.
  */
 async function getLearningPathByName(learningPathName) {
-  const record = learningPathsByName.get(learningPathName);
-  if (!record) return undefined;
-  return normalizeForApi(record);
+  if (typeof learningPathName !== 'string' || learningPathName.trim().length === 0) return undefined;
+  const doc = await LearningPath.findOne({ learningPathName: learningPathName.trim() }, { _id: 0 }).lean();
+  return doc ? normalizeForApi(doc) : undefined;
 }
 
 /**
@@ -114,19 +78,25 @@ async function getLearningPathByName(learningPathName) {
  * @returns {Promise<object|undefined>} Updated record if found; otherwise undefined.
  */
 async function replaceLearningPath(learningPathName, replacement) {
-  const existing = learningPathsByName.get(learningPathName);
+  if (typeof learningPathName !== 'string' || learningPathName.trim().length === 0) return undefined;
+
+  const existing = await LearningPath.findOne({ learningPathName: learningPathName.trim() }).lean();
   if (!existing) return undefined;
 
-  const now = new Date();
-  const updated = {
-    ...replacement,
-    learningPathName,
-    createdAt: existing.createdAt,
-    updatedAt: now.toISOString(),
-  };
-
-  learningPathsByName.set(learningPathName, updated);
-  return normalizeForApi(updated);
+  try {
+    const updated = await LearningPath.findOneAndUpdate(
+      { learningPathName: learningPathName.trim() },
+      { ...replacement, learningPathName: learningPathName.trim(), createdAt: existing.createdAt },
+      { new: true, runValidators: false }
+    );
+    return updated ? normalizeForApi(updated) : undefined;
+  } catch (err) {
+    throw mapMongoError(
+      err,
+      'DUPLICATE_LEARNING_PATH_NAME',
+      'Learning Path with this learningPathName already exists.'
+    );
+  }
 }
 
 /**
@@ -138,24 +108,18 @@ async function replaceLearningPath(learningPathName, replacement) {
  * @returns {Promise<object|undefined>} Updated record if found; otherwise undefined.
  */
 async function patchLearningPath(learningPathName, patch) {
-  const existing = learningPathsByName.get(learningPathName);
-  if (!existing) return undefined;
+  if (typeof learningPathName !== 'string' || learningPathName.trim().length === 0) return undefined;
 
   const safePatch = { ...(patch || {}) };
-  // Prevent accidental identifier overwrite
   if ('learningPathName' in safePatch) delete safePatch.learningPathName;
 
-  const now = new Date();
-  const updated = {
-    ...existing,
-    ...safePatch,
-    learningPathName,
-    createdAt: existing.createdAt,
-    updatedAt: now.toISOString(),
-  };
+  const updated = await LearningPath.findOneAndUpdate(
+    { learningPathName: learningPathName.trim() },
+    { $set: safePatch },
+    { new: true, runValidators: false }
+  );
 
-  learningPathsByName.set(learningPathName, updated);
-  return normalizeForApi(updated);
+  return updated ? normalizeForApi(updated) : undefined;
 }
 
 /**
@@ -166,17 +130,19 @@ async function patchLearningPath(learningPathName, patch) {
  * @returns {Promise<boolean>} True if deleted; false if not found.
  */
 async function deleteLearningPath(learningPathName) {
-  return learningPathsByName.delete(learningPathName);
+  if (typeof learningPathName !== 'string' || learningPathName.trim().length === 0) return false;
+  const res = await LearningPath.deleteOne({ learningPathName: learningPathName.trim() });
+  return (res.deletedCount || 0) > 0;
 }
 
 /**
  * PUBLIC_INTERFACE
- * Clears all learning paths from the in-memory store.
+ * Clears all learning paths from the store.
  *
  * @returns {Promise<void>} resolves when cleared
  */
 async function clearAll() {
-  learningPathsByName.clear();
+  await LearningPath.deleteMany({});
 }
 
 module.exports = {

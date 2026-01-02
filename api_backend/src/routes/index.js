@@ -943,7 +943,7 @@ router.delete('/announcements/:id', verifyJwt, requireRole(['admin', 'manager'])
  *   get:
  *     tags: [Metrics]
  *     summary: Metrics summary
- *     description: Aggregated metrics computed from in-memory stores.
+ *     description: Aggregated metrics computed from persisted resources.
  *     responses:
  *       200:
  *         description: Metrics summary
@@ -1206,9 +1206,9 @@ router.get('/backup/:id', backupController.getBackupById);
  *     tags: [Restore]
  *     summary: Restore state from a backup snapshot
  *     description: |
- *       Restores in-memory application state by replaying create operations for each resource.
+ *       Restores persisted application state (MongoDB) by replaying create operations for each resource.
  *
- *       Default behavior is idempotent-safe **replace** mode which clears current in-memory stores first.
+ *       Default behavior is idempotent-safe **replace** mode which clears current MongoDB collections first.
  *       Use `?restoreMode=merge` to keep existing data and attempt to insert from the snapshot.
  *     security:
  *       - bearerAuth: []
@@ -1220,7 +1220,7 @@ router.get('/backup/:id', backupController.getBackupById);
  *           type: string
  *           enum: [replace, merge]
  *           default: replace
- *         description: replace clears existing in-memory stores before restore; merge keeps existing data.
+ *         description: replace clears existing MongoDB collections before restore; merge keeps existing data.
  *     requestBody:
  *       required: true
  *       content:

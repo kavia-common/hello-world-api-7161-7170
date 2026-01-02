@@ -1,56 +1,19 @@
 'use strict';
 
-/**
- * Simple in-memory announcements store.
- *
- * Notes:
- * - Data is reset whenever the server restarts.
- * - This module follows the same Map-backed pattern used by other stores in this API.
- * - Validates id uniqueness on create.
- */
+const Announcement = require('../db/models/Announcement');
+const { mapMongoError } = require('../db/mongoErrors');
 
 /** @type {Set<string>} */
 const ALLOWED_PRIORITIES = new Set(['low', 'normal', 'high']);
 
-/** @type {Map<string, any>} */
-const announcementsById = new Map();
-
-/**
- * Creates a shallow clone and ensures timestamps are ISO strings.
- *
- * @param {object} announcement Announcement record
- * @returns {object} Normalized record for API responses
- */
 function normalizeForApi(announcement) {
   if (!announcement || typeof announcement !== 'object') return announcement;
-
-  const createdAt =
-    announcement.createdAt instanceof Date
-      ? announcement.createdAt.toISOString()
-      : typeof announcement.createdAt === 'string'
-        ? announcement.createdAt
-        : undefined;
-
-  const updatedAt =
-    announcement.updatedAt instanceof Date
-      ? announcement.updatedAt.toISOString()
-      : typeof announcement.updatedAt === 'string'
-        ? announcement.updatedAt
-        : undefined;
-
-  const result = { ...announcement };
-  if (createdAt) result.createdAt = createdAt;
-  if (updatedAt) result.updatedAt = updatedAt;
-
-  return result;
+  const obj = typeof announcement.toJSON === 'function' ? announcement.toJSON() : { ...announcement };
+  if (obj.createdAt instanceof Date) obj.createdAt = obj.createdAt.toISOString();
+  if (obj.updatedAt instanceof Date) obj.updatedAt = obj.updatedAt.toISOString();
+  return obj;
 }
 
-/**
- * Determines if the provided value is a non-empty string.
- *
- * @param {unknown} value Any value
- * @returns {boolean} True if non-empty string
- */
 function isNonEmptyString(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
@@ -65,15 +28,9 @@ function isOptionalIsoDateString(value) {
   if (value === undefined || value === null || value === '') return true;
   if (typeof value !== 'string') return false;
   const d = new Date(value);
-  return !Number.isNaN(d.getTime()) && d.toISOString() === d.toISOString(); // ensure Date is valid (string check is best-effort)
+  return !Number.isNaN(d.getTime());
 }
 
-/**
- * Parses an ISO date string into a Date for comparison.
- *
- * @param {string|undefined} value ISO string
- * @returns {Date|undefined} Parsed date
- */
 function parseIsoDate(value) {
   if (!isNonEmptyString(value)) return undefined;
   const d = new Date(value);
@@ -94,7 +51,6 @@ function validateAnnouncement(candidate, isPatch) {
   }
 
   if (!isPatch) {
-    // Create/replace require title and message at controller-level; store ensures types if present.
     if (!isNonEmptyString(candidate.id)) {
       return { ok: false, code: 'VALIDATION_ERROR', message: 'id is required.' };
     }
@@ -104,11 +60,7 @@ function validateAnnouncement(candidate, isPatch) {
     return { ok: false, code: 'VALIDATION_ERROR', message: 'title must be a string.' };
   }
 
-  if (
-    candidate.message !== undefined &&
-    candidate.message !== null &&
-    typeof candidate.message !== 'string'
-  ) {
+  if (candidate.message !== undefined && candidate.message !== null && typeof candidate.message !== 'string') {
     return { ok: false, code: 'VALIDATION_ERROR', message: 'message must be a string.' };
   }
 
@@ -118,11 +70,7 @@ function validateAnnouncement(candidate, isPatch) {
 
   if (candidate.priority !== undefined && candidate.priority !== null) {
     if (typeof candidate.priority !== 'string' || !ALLOWED_PRIORITIES.has(candidate.priority)) {
-      return {
-        ok: false,
-        code: 'VALIDATION_ERROR',
-        message: 'priority must be one of: low, normal, high.',
-      };
+      return { ok: false, code: 'VALIDATION_ERROR', message: 'priority must be one of: low, normal, high.' };
     }
   }
 
@@ -149,10 +97,10 @@ function validateAnnouncement(candidate, isPatch) {
 
 /**
  * PUBLIC_INTERFACE
- * Creates and stores an announcement record in-memory.
+ * Creates and stores an announcement record.
  *
  * Uniqueness rules:
- * - id must be unique (client-provided, or set by controller)
+ * - id must be unique
  *
  * @param {object} announcement Announcement record to store
  * @returns {Promise<object>} Stored announcement record (normalized)
@@ -167,22 +115,13 @@ async function createAnnouncement(announcement) {
   }
 
   const id = announcement.id.trim();
-  if (announcementsById.has(id)) {
-    const err = new Error('Announcement with this id already exists.');
-    err.code = 'DUPLICATE_ID';
-    throw err;
+
+  try {
+    const created = await Announcement.create({ ...announcement, id });
+    return normalizeForApi(created);
+  } catch (err) {
+    throw mapMongoError(err, 'DUPLICATE_ID', 'Announcement with this id already exists.');
   }
-
-  const now = new Date();
-  const record = {
-    ...announcement,
-    id,
-    createdAt: now.toISOString(),
-    updatedAt: now.toISOString(),
-  };
-
-  announcementsById.set(id, record);
-  return normalizeForApi(record);
 }
 
 /**
@@ -192,7 +131,8 @@ async function createAnnouncement(announcement) {
  * @returns {Promise<object[]>} Array of announcement records (normalized)
  */
 async function listAnnouncements() {
-  return Array.from(announcementsById.values()).map(normalizeForApi);
+  const docs = await Announcement.find({}, { _id: 0 }).lean();
+  return docs.map(normalizeForApi);
 }
 
 /**
@@ -203,9 +143,9 @@ async function listAnnouncements() {
  * @returns {Promise<object|undefined>} Announcement record if found; otherwise undefined
  */
 async function getAnnouncementById(id) {
-  const record = announcementsById.get(id);
-  if (!record) return undefined;
-  return normalizeForApi(record);
+  if (!isNonEmptyString(id)) return undefined;
+  const doc = await Announcement.findOne({ id: id.trim() }, { _id: 0 }).lean();
+  return doc ? normalizeForApi(doc) : undefined;
 }
 
 /**
@@ -220,7 +160,9 @@ async function getAnnouncementById(id) {
  * @throws {Error} On validation issues
  */
 async function replaceAnnouncement(id, replacement) {
-  const existing = announcementsById.get(id);
+  if (!isNonEmptyString(id)) return undefined;
+
+  const existing = await Announcement.findOne({ id: id.trim() }).lean();
   if (!existing) return undefined;
 
   const validation = validateAnnouncement({ ...replacement, id }, false);
@@ -230,16 +172,16 @@ async function replaceAnnouncement(id, replacement) {
     throw err;
   }
 
-  const now = new Date();
-  const record = {
-    ...replacement,
-    id,
-    createdAt: existing.createdAt,
-    updatedAt: now.toISOString(),
-  };
-
-  announcementsById.set(id, record);
-  return normalizeForApi(record);
+  try {
+    const updated = await Announcement.findOneAndUpdate(
+      { id: id.trim() },
+      { ...replacement, id: id.trim(), createdAt: existing.createdAt },
+      { new: true, runValidators: false }
+    );
+    return updated ? normalizeForApi(updated) : undefined;
+  } catch (err) {
+    throw mapMongoError(err, 'DB_ERROR', 'Database error.');
+  }
 }
 
 /**
@@ -252,7 +194,9 @@ async function replaceAnnouncement(id, replacement) {
  * @throws {Error} On validation issues
  */
 async function patchAnnouncement(id, patch) {
-  const existing = announcementsById.get(id);
+  if (!isNonEmptyString(id)) return undefined;
+
+  const existing = await Announcement.findOne({ id: id.trim() }).lean();
   if (!existing) return undefined;
 
   const safePatch = { ...(patch || {}) };
@@ -261,7 +205,7 @@ async function patchAnnouncement(id, patch) {
   const candidate = {
     ...existing,
     ...safePatch,
-    id,
+    id: id.trim(),
     createdAt: existing.createdAt,
   };
 
@@ -272,14 +216,16 @@ async function patchAnnouncement(id, patch) {
     throw err;
   }
 
-  const now = new Date();
-  const updated = {
-    ...candidate,
-    updatedAt: now.toISOString(),
-  };
-
-  announcementsById.set(id, updated);
-  return normalizeForApi(updated);
+  try {
+    const updated = await Announcement.findOneAndUpdate(
+      { id: id.trim() },
+      { $set: safePatch },
+      { new: true, runValidators: false }
+    );
+    return updated ? normalizeForApi(updated) : undefined;
+  } catch (err) {
+    throw mapMongoError(err, 'DB_ERROR', 'Database error.');
+  }
 }
 
 /**
@@ -290,21 +236,19 @@ async function patchAnnouncement(id, patch) {
  * @returns {Promise<boolean>} True if deleted; false if not found
  */
 async function deleteAnnouncement(id) {
-  const existing = announcementsById.get(id);
-  if (!existing) return false;
-
-  announcementsById.delete(id);
-  return true;
+  if (!isNonEmptyString(id)) return false;
+  const res = await Announcement.deleteOne({ id: id.trim() });
+  return (res.deletedCount || 0) > 0;
 }
 
 /**
  * PUBLIC_INTERFACE
- * Clears all announcements from the in-memory store.
+ * Clears all announcements from the store.
  *
  * @returns {Promise<void>} resolves when cleared
  */
 async function clearAll() {
-  announcementsById.clear();
+  await Announcement.deleteMany({});
 }
 
 module.exports = {

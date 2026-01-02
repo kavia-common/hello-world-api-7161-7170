@@ -46,11 +46,11 @@ function emptySummary() {
 }
 
 /**
- * Clears all in-memory stores.
+ * Clears all persisted resource collections in MongoDB.
  *
  * NOTE:
- * We intentionally add explicit clear() APIs on each store so restore does not rely
- * on internal variables or process restarts.
+ * We intentionally keep explicit clearAll() APIs on each store so restore does not rely
+ * on internal variables or raw model access.
  *
  * @returns {Promise<void>} resolves when cleared
  */

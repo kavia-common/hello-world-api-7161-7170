@@ -1,46 +1,20 @@
 'use strict';
 
-/**
- * Simple in-memory instructions store.
- *
- * Notes:
- * - Data is reset whenever the server restarts.
- * - This module follows the same Map-backed pattern used by other stores in this API.
- */
-
-/** @type {Map<string, any>} */
-const instructionsById = new Map();
-/** @type {Map<string, string>} slugToId */
-const slugToId = new Map();
+const Instruction = require('../db/models/Instruction');
+const { mapMongoError } = require('../db/mongoErrors');
 
 /**
- * Creates a shallow clone and ensures timestamps are ISO strings.
+ * Normalizes timestamps to ISO strings for API responses.
  *
- * @param {object} instruction Instruction record
- * @returns {object} Normalized record for API responses
+ * @param {any} record
+ * @returns {object|any}
  */
-function normalizeForApi(instruction) {
-  if (!instruction || typeof instruction !== 'object') return instruction;
-
-  const createdAt =
-    instruction.createdAt instanceof Date
-      ? instruction.createdAt.toISOString()
-      : typeof instruction.createdAt === 'string'
-        ? instruction.createdAt
-        : undefined;
-
-  const updatedAt =
-    instruction.updatedAt instanceof Date
-      ? instruction.updatedAt.toISOString()
-      : typeof instruction.updatedAt === 'string'
-        ? instruction.updatedAt
-        : undefined;
-
-  const result = { ...instruction };
-  if (createdAt) result.createdAt = createdAt;
-  if (updatedAt) result.updatedAt = updatedAt;
-
-  return result;
+function normalizeForApi(record) {
+  if (!record || typeof record !== 'object') return record;
+  const obj = typeof record.toJSON === 'function' ? record.toJSON() : { ...record };
+  if (obj.createdAt instanceof Date) obj.createdAt = obj.createdAt.toISOString();
+  if (obj.updatedAt instanceof Date) obj.updatedAt = obj.updatedAt.toISOString();
+  return obj;
 }
 
 /**
@@ -55,7 +29,7 @@ function isNonEmptyString(value) {
 
 /**
  * PUBLIC_INTERFACE
- * Creates and stores an instruction record in-memory.
+ * Creates and stores an instruction record.
  *
  * Uniqueness rules:
  * - id must be unique
@@ -73,36 +47,34 @@ async function createInstruction(instruction) {
     throw err;
   }
 
-  if (instructionsById.has(id)) {
-    const err = new Error('Instruction with this id already exists.');
-    err.code = 'DUPLICATE_ID';
-    throw err;
-  }
-
   const slug =
     instruction && typeof instruction.slug === 'string' && instruction.slug.trim().length > 0
       ? instruction.slug.trim()
       : undefined;
 
-  if (slug && slugToId.has(slug)) {
-    const err = new Error('Instruction with this slug already exists.');
-    err.code = 'DUPLICATE_SLUG';
-    throw err;
+  try {
+    const created = await Instruction.create({
+      ...instruction,
+      id: id.trim(),
+      slug,
+    });
+    return normalizeForApi(created);
+  } catch (err) {
+    // Distinguish duplicate slug vs duplicate id by inspecting keyPattern/keyValue when present
+    if (err && err.code === 11000) {
+      const keys = err.keyPattern || {};
+      if (keys.slug) {
+        const e = new Error('Instruction with this slug already exists.');
+        e.code = 'DUPLICATE_SLUG';
+        throw e;
+      }
+      const e = new Error('Instruction with this id already exists.');
+      e.code = 'DUPLICATE_ID';
+      throw e;
+    }
+
+    throw mapMongoError(err, 'DB_ERROR', 'Database error.');
   }
-
-  const now = new Date();
-  const record = {
-    ...instruction,
-    id: id.trim(),
-    slug,
-    createdAt: now.toISOString(),
-    updatedAt: now.toISOString(),
-  };
-
-  instructionsById.set(record.id, record);
-  if (slug) slugToId.set(slug, record.id);
-
-  return normalizeForApi(record);
 }
 
 /**
@@ -112,7 +84,8 @@ async function createInstruction(instruction) {
  * @returns {Promise<object[]>} Array of instruction records (normalized)
  */
 async function listInstructions() {
-  return Array.from(instructionsById.values()).map(normalizeForApi);
+  const docs = await Instruction.find({}, { _id: 0 }).lean();
+  return docs.map(normalizeForApi);
 }
 
 /**
@@ -123,9 +96,9 @@ async function listInstructions() {
  * @returns {Promise<object|undefined>} Instruction record if found; otherwise undefined
  */
 async function getInstructionById(id) {
-  const record = instructionsById.get(id);
-  if (!record) return undefined;
-  return normalizeForApi(record);
+  if (!isNonEmptyString(id)) return undefined;
+  const doc = await Instruction.findOne({ id: id.trim() }, { _id: 0 }).lean();
+  return doc ? normalizeForApi(doc) : undefined;
 }
 
 /**
@@ -141,7 +114,9 @@ async function getInstructionById(id) {
  * @throws {Error} On duplicate slug
  */
 async function replaceInstruction(id, replacement) {
-  const existing = instructionsById.get(id);
+  if (!isNonEmptyString(id)) return undefined;
+
+  const existing = await Instruction.findOne({ id: id.trim() }).lean();
   if (!existing) return undefined;
 
   const newSlug =
@@ -149,31 +124,24 @@ async function replaceInstruction(id, replacement) {
       ? replacement.slug.trim()
       : undefined;
 
-  // If slug is changing (including from defined -> undefined, or undefined -> defined), update indexes safely.
-  const oldSlug = existing.slug;
-
-  if (newSlug && slugToId.has(newSlug) && slugToId.get(newSlug) !== id) {
-    const err = new Error('Instruction with this slug already exists.');
-    err.code = 'DUPLICATE_SLUG';
-    throw err;
+  try {
+    const updated = await Instruction.findOneAndUpdate(
+      { id: id.trim() },
+      { ...replacement, id: id.trim(), slug: newSlug, createdAt: existing.createdAt },
+      { new: true, runValidators: false }
+    );
+    return updated ? normalizeForApi(updated) : undefined;
+  } catch (err) {
+    if (err && err.code === 11000) {
+      const keys = err.keyPattern || {};
+      if (keys.slug) {
+        const e = new Error('Instruction with this slug already exists.');
+        e.code = 'DUPLICATE_SLUG';
+        throw e;
+      }
+    }
+    throw mapMongoError(err, 'DB_ERROR', 'Database error.');
   }
-
-  const now = new Date();
-  const record = {
-    ...replacement,
-    id,
-    slug: newSlug,
-    createdAt: existing.createdAt,
-    updatedAt: now.toISOString(),
-  };
-
-  instructionsById.set(id, record);
-
-  // Update slug index
-  if (oldSlug && oldSlug !== newSlug) slugToId.delete(oldSlug);
-  if (newSlug) slugToId.set(newSlug, id);
-
-  return normalizeForApi(record);
 }
 
 /**
@@ -188,49 +156,36 @@ async function replaceInstruction(id, replacement) {
  * @throws {Error} On duplicate slug
  */
 async function patchInstruction(id, patch) {
-  const existing = instructionsById.get(id);
-  if (!existing) return undefined;
+  if (!isNonEmptyString(id)) return undefined;
 
   const safePatch = { ...(patch || {}) };
-  // Prevent accidental id overwrite
   if ('id' in safePatch) delete safePatch.id;
 
-  const now = new Date();
-
-  const wantsToUpdateSlug = Object.prototype.hasOwnProperty.call(safePatch, 'slug');
-  const candidateSlug =
-    wantsToUpdateSlug && typeof safePatch.slug === 'string' && safePatch.slug.trim().length > 0
-      ? safePatch.slug.trim()
-      : wantsToUpdateSlug
-        ? undefined
-        : existing.slug;
-
-  if (candidateSlug && slugToId.has(candidateSlug) && slugToId.get(candidateSlug) !== id) {
-    const err = new Error('Instruction with this slug already exists.');
-    err.code = 'DUPLICATE_SLUG';
-    throw err;
+  // Allow slug clearing by setting undefined/null/empty string at controller level;
+  // here we normalize empty string to undefined.
+  if (Object.prototype.hasOwnProperty.call(safePatch, 'slug')) {
+    if (!isNonEmptyString(safePatch.slug)) safePatch.slug = undefined;
+    else safePatch.slug = safePatch.slug.trim();
   }
 
-  const updated = {
-    ...existing,
-    ...safePatch,
-    id,
-    slug: candidateSlug,
-    createdAt: existing.createdAt,
-    updatedAt: now.toISOString(),
-  };
-
-  instructionsById.set(id, updated);
-
-  // Update slug index if changed
-  if (wantsToUpdateSlug) {
-    const oldSlug = existing.slug;
-    const newSlug = updated.slug;
-    if (oldSlug && oldSlug !== newSlug) slugToId.delete(oldSlug);
-    if (newSlug) slugToId.set(newSlug, id);
+  try {
+    const updated = await Instruction.findOneAndUpdate(
+      { id: id.trim() },
+      { $set: safePatch },
+      { new: true, runValidators: false }
+    );
+    return updated ? normalizeForApi(updated) : undefined;
+  } catch (err) {
+    if (err && err.code === 11000) {
+      const keys = err.keyPattern || {};
+      if (keys.slug) {
+        const e = new Error('Instruction with this slug already exists.');
+        e.code = 'DUPLICATE_SLUG';
+        throw e;
+      }
+    }
+    throw mapMongoError(err, 'DB_ERROR', 'Database error.');
   }
-
-  return normalizeForApi(updated);
 }
 
 /**
@@ -241,24 +196,19 @@ async function patchInstruction(id, patch) {
  * @returns {Promise<boolean>} True if deleted; false if not found
  */
 async function deleteInstruction(id) {
-  const existing = instructionsById.get(id);
-  if (!existing) return false;
-
-  instructionsById.delete(id);
-  if (existing.slug) slugToId.delete(existing.slug);
-
-  return true;
+  if (!isNonEmptyString(id)) return false;
+  const res = await Instruction.deleteOne({ id: id.trim() });
+  return (res.deletedCount || 0) > 0;
 }
 
 /**
  * PUBLIC_INTERFACE
- * Clears all instructions from the in-memory store (including slug index).
+ * Clears all instructions from the store.
  *
  * @returns {Promise<void>} resolves when cleared
  */
 async function clearAll() {
-  instructionsById.clear();
-  slugToId.clear();
+  await Instruction.deleteMany({});
 }
 
 module.exports = {
@@ -270,4 +220,3 @@ module.exports = {
   deleteInstruction,
   clearAll,
 };
-

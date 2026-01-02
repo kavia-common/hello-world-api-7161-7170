@@ -1,51 +1,29 @@
 'use strict';
 
-/**
- * Simple in-memory employee store.
- *
- * Notes:
- * - Data is reset whenever the server restarts.
- * - This module preserves the same async API as the previous MongoDB implementation
- *   so controllers/routes can remain unchanged.
- */
-
-/** @type {Map<string, any>} */
-const employeesById = new Map();
+const Employee = require('../db/models/Employee');
+const { mapMongoError } = require('../db/mongoErrors');
 
 /**
- * Creates a shallow clone and ensures timestamps are ISO strings.
+ * Normalizes a Mongo document (or plain object) to match the API response style.
  *
- * @param {object} employee Employee record
- * @returns {object} Normalized record for API responses
+ * @param {any} employee
+ * @returns {object|any}
  */
 function normalizeForApi(employee) {
   if (!employee || typeof employee !== 'object') return employee;
 
-  const createdAt =
-    employee.createdAt instanceof Date
-      ? employee.createdAt.toISOString()
-      : typeof employee.createdAt === 'string'
-        ? employee.createdAt
-        : undefined;
+  const obj = typeof employee.toJSON === 'function' ? employee.toJSON() : { ...employee };
 
-  const updatedAt =
-    employee.updatedAt instanceof Date
-      ? employee.updatedAt.toISOString()
-      : typeof employee.updatedAt === 'string'
-        ? employee.updatedAt
-        : undefined;
+  // Ensure timestamps are ISO strings
+  if (obj.createdAt instanceof Date) obj.createdAt = obj.createdAt.toISOString();
+  if (obj.updatedAt instanceof Date) obj.updatedAt = obj.updatedAt.toISOString();
 
-  // Avoid returning undefined timestamps if not set
-  const result = { ...employee };
-  if (createdAt) result.createdAt = createdAt;
-  if (updatedAt) result.updatedAt = updatedAt;
-
-  return result;
+  return obj;
 }
 
 /**
  * PUBLIC_INTERFACE
- * Creates and stores an employee record in-memory.
+ * Creates and stores an employee record in MongoDB.
  *
  * Enforces uniqueness by `employeeId`.
  *
@@ -57,28 +35,20 @@ async function createEmployee(employee) {
   const employeeId = employee && typeof employee.employeeId === 'string' ? employee.employeeId : undefined;
 
   if (!employeeId) {
-    // Controllers already validate, but keep a defensive check here.
     const err = new Error('employeeId is required.');
     err.code = 'VALIDATION_ERROR';
     throw err;
   }
 
-  if (employeesById.has(employeeId)) {
-    const e = new Error('Employee with this employeeId already exists.');
-    e.code = 'DUPLICATE_EMPLOYEE_ID';
-    throw e;
+  try {
+    const created = await Employee.create({
+      ...employee,
+      employeeId,
+    });
+    return normalizeForApi(created);
+  } catch (err) {
+    throw mapMongoError(err, 'DUPLICATE_EMPLOYEE_ID', 'Employee with this employeeId already exists.');
   }
-
-  const now = new Date();
-  const record = {
-    ...employee,
-    employeeId,
-    createdAt: now.toISOString(),
-    updatedAt: now.toISOString(),
-  };
-
-  employeesById.set(employeeId, record);
-  return normalizeForApi(record);
 }
 
 /**
@@ -88,7 +58,8 @@ async function createEmployee(employee) {
  * @returns {Promise<object[]>} Array of employee records.
  */
 async function listEmployees() {
-  return Array.from(employeesById.values()).map(normalizeForApi);
+  const docs = await Employee.find({}, { _id: 0 }).lean();
+  return docs.map(normalizeForApi);
 }
 
 /**
@@ -99,36 +70,42 @@ async function listEmployees() {
  * @returns {Promise<object|undefined>} Employee record if found; otherwise undefined.
  */
 async function getEmployeeById(employeeId) {
-  const record = employeesById.get(employeeId);
-  if (!record) return undefined;
-  return normalizeForApi(record);
+  if (typeof employeeId !== 'string' || employeeId.trim().length === 0) return undefined;
+  const doc = await Employee.findOne({ employeeId: employeeId.trim() }, { _id: 0 }).lean();
+  return doc ? normalizeForApi(doc) : undefined;
 }
 
 /**
  * PUBLIC_INTERFACE
  * Replaces an existing employee record by employeeId.
  *
- * Preserves the original createdAt timestamp.
+ * Preserves createdAt.
  *
  * @param {string} employeeId Employee ID to replace.
  * @param {object} replacement Replacement employee record.
  * @returns {Promise<object|undefined>} Updated employee if found; otherwise undefined.
  */
 async function replaceEmployee(employeeId, replacement) {
-  const existing = employeesById.get(employeeId);
+  if (typeof employeeId !== 'string' || employeeId.trim().length === 0) return undefined;
+
+  const existing = await Employee.findOne({ employeeId: employeeId.trim() }).lean();
   if (!existing) return undefined;
 
-  const now = new Date();
-
-  const record = {
-    ...replacement,
-    employeeId,
-    createdAt: existing.createdAt,
-    updatedAt: now.toISOString(),
-  };
-
-  employeesById.set(employeeId, record);
-  return normalizeForApi(record);
+  // Preserve createdAt from existing. updatedAt will be updated by mongoose timestamps.
+  try {
+    const updated = await Employee.findOneAndUpdate(
+      { employeeId: employeeId.trim() },
+      {
+        ...replacement,
+        employeeId: employeeId.trim(),
+        createdAt: existing.createdAt,
+      },
+      { new: true, runValidators: false }
+    );
+    return updated ? normalizeForApi(updated) : undefined;
+  } catch (err) {
+    throw mapMongoError(err, 'DUPLICATE_EMPLOYEE_ID', 'Employee with this employeeId already exists.');
+  }
 }
 
 /**
@@ -140,26 +117,18 @@ async function replaceEmployee(employeeId, replacement) {
  * @returns {Promise<object|undefined>} Updated employee if found; otherwise undefined.
  */
 async function patchEmployee(employeeId, patch) {
-  const existing = employeesById.get(employeeId);
-  if (!existing) return undefined;
+  if (typeof employeeId !== 'string' || employeeId.trim().length === 0) return undefined;
 
   const safePatch = { ...(patch || {}) };
-  // Prevent accidental employeeId overwrite
   if ('employeeId' in safePatch) delete safePatch.employeeId;
 
-  const now = new Date();
+  const updated = await Employee.findOneAndUpdate(
+    { employeeId: employeeId.trim() },
+    { $set: safePatch },
+    { new: true, runValidators: false }
+  );
 
-  const updated = {
-    ...existing,
-    ...safePatch,
-    employeeId,
-    // Keep original createdAt, but bump updatedAt
-    createdAt: existing.createdAt,
-    updatedAt: now.toISOString(),
-  };
-
-  employeesById.set(employeeId, updated);
-  return normalizeForApi(updated);
+  return updated ? normalizeForApi(updated) : undefined;
 }
 
 /**
@@ -170,17 +139,19 @@ async function patchEmployee(employeeId, patch) {
  * @returns {Promise<boolean>} True if deleted; false if not found.
  */
 async function deleteEmployee(employeeId) {
-  return employeesById.delete(employeeId);
+  if (typeof employeeId !== 'string' || employeeId.trim().length === 0) return false;
+  const res = await Employee.deleteOne({ employeeId: employeeId.trim() });
+  return (res.deletedCount || 0) > 0;
 }
 
 /**
  * PUBLIC_INTERFACE
- * Clears all employees from the in-memory store.
+ * Clears all employees from the store (MongoDB).
  *
  * @returns {Promise<void>} resolves when cleared
  */
 async function clearAll() {
-  employeesById.clear();
+  await Employee.deleteMany({});
 }
 
 module.exports = {

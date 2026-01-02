@@ -1,49 +1,19 @@
 'use strict';
 
-/**
- * Simple in-memory Assessments store.
- *
- * Notes:
- * - Data resets whenever the server restarts.
- * - Controllers enforce validation; store enforces uniqueness by `assessmentId`.
- */
+const Assessment = require('../db/models/Assessment');
+const { mapMongoError } = require('../db/mongoErrors');
 
-/** @type {Map<string, any>} */
-const assessmentsById = new Map();
-
-/**
- * Normalizes timestamps to ISO strings for API responses.
- *
- * @param {object} record Assessment record
- * @returns {object} Normalized record
- */
 function normalizeForApi(record) {
   if (!record || typeof record !== 'object') return record;
-
-  const createdAt =
-    record.createdAt instanceof Date
-      ? record.createdAt.toISOString()
-      : typeof record.createdAt === 'string'
-        ? record.createdAt
-        : undefined;
-
-  const updatedAt =
-    record.updatedAt instanceof Date
-      ? record.updatedAt.toISOString()
-      : typeof record.updatedAt === 'string'
-        ? record.updatedAt
-        : undefined;
-
-  const result = { ...record };
-  if (createdAt) result.createdAt = createdAt;
-  if (updatedAt) result.updatedAt = updatedAt;
-
-  return result;
+  const obj = typeof record.toJSON === 'function' ? record.toJSON() : { ...record };
+  if (obj.createdAt instanceof Date) obj.createdAt = obj.createdAt.toISOString();
+  if (obj.updatedAt instanceof Date) obj.updatedAt = obj.updatedAt.toISOString();
+  return obj;
 }
 
 /**
  * PUBLIC_INTERFACE
- * Creates and stores an Assessment record in-memory.
+ * Creates and stores an Assessment record.
  *
  * Enforces uniqueness by `assessmentId`.
  *
@@ -60,22 +30,12 @@ async function createAssessment(record) {
     throw err;
   }
 
-  if (assessmentsById.has(assessmentId)) {
-    const err = new Error('Assessment with this assessmentId already exists.');
-    err.code = 'DUPLICATE_ASSESSMENT_ID';
-    throw err;
+  try {
+    const created = await Assessment.create({ ...record, assessmentId });
+    return normalizeForApi(created);
+  } catch (err) {
+    throw mapMongoError(err, 'DUPLICATE_ASSESSMENT_ID', 'Assessment with this assessmentId already exists.');
   }
-
-  const now = new Date();
-  const stored = {
-    ...record,
-    assessmentId,
-    createdAt: now.toISOString(),
-    updatedAt: now.toISOString(),
-  };
-
-  assessmentsById.set(assessmentId, stored);
-  return normalizeForApi(stored);
 }
 
 /**
@@ -85,7 +45,8 @@ async function createAssessment(record) {
  * @returns {Promise<object[]>} Array of records
  */
 async function listAssessments() {
-  return Array.from(assessmentsById.values()).map(normalizeForApi);
+  const docs = await Assessment.find({}, { _id: 0 }).lean();
+  return docs.map(normalizeForApi);
 }
 
 /**
@@ -96,9 +57,9 @@ async function listAssessments() {
  * @returns {Promise<object|undefined>} Record if found; otherwise undefined.
  */
 async function getAssessmentById(assessmentId) {
-  const record = assessmentsById.get(assessmentId);
-  if (!record) return undefined;
-  return normalizeForApi(record);
+  if (typeof assessmentId !== 'string' || assessmentId.trim().length === 0) return undefined;
+  const doc = await Assessment.findOne({ assessmentId: assessmentId.trim() }, { _id: 0 }).lean();
+  return doc ? normalizeForApi(doc) : undefined;
 }
 
 /**
@@ -112,19 +73,21 @@ async function getAssessmentById(assessmentId) {
  * @returns {Promise<object|undefined>} Updated record if found; otherwise undefined.
  */
 async function replaceAssessment(assessmentId, replacement) {
-  const existing = assessmentsById.get(assessmentId);
+  if (typeof assessmentId !== 'string' || assessmentId.trim().length === 0) return undefined;
+
+  const existing = await Assessment.findOne({ assessmentId: assessmentId.trim() }).lean();
   if (!existing) return undefined;
 
-  const now = new Date();
-  const updated = {
-    ...replacement,
-    assessmentId,
-    createdAt: existing.createdAt,
-    updatedAt: now.toISOString(),
-  };
-
-  assessmentsById.set(assessmentId, updated);
-  return normalizeForApi(updated);
+  try {
+    const updated = await Assessment.findOneAndUpdate(
+      { assessmentId: assessmentId.trim() },
+      { ...replacement, assessmentId: assessmentId.trim(), createdAt: existing.createdAt },
+      { new: true, runValidators: false }
+    );
+    return updated ? normalizeForApi(updated) : undefined;
+  } catch (err) {
+    throw mapMongoError(err, 'DUPLICATE_ASSESSMENT_ID', 'Assessment with this assessmentId already exists.');
+  }
 }
 
 /**
@@ -136,24 +99,18 @@ async function replaceAssessment(assessmentId, replacement) {
  * @returns {Promise<object|undefined>} Updated record if found; otherwise undefined.
  */
 async function patchAssessment(assessmentId, patch) {
-  const existing = assessmentsById.get(assessmentId);
-  if (!existing) return undefined;
+  if (typeof assessmentId !== 'string' || assessmentId.trim().length === 0) return undefined;
 
   const safePatch = { ...(patch || {}) };
-  // Prevent accidental id overwrite
   if ('assessmentId' in safePatch) delete safePatch.assessmentId;
 
-  const now = new Date();
-  const updated = {
-    ...existing,
-    ...safePatch,
-    assessmentId,
-    createdAt: existing.createdAt,
-    updatedAt: now.toISOString(),
-  };
+  const updated = await Assessment.findOneAndUpdate(
+    { assessmentId: assessmentId.trim() },
+    { $set: safePatch },
+    { new: true, runValidators: false }
+  );
 
-  assessmentsById.set(assessmentId, updated);
-  return normalizeForApi(updated);
+  return updated ? normalizeForApi(updated) : undefined;
 }
 
 /**
@@ -164,17 +121,19 @@ async function patchAssessment(assessmentId, patch) {
  * @returns {Promise<boolean>} True if deleted; false if not found.
  */
 async function deleteAssessment(assessmentId) {
-  return assessmentsById.delete(assessmentId);
+  if (typeof assessmentId !== 'string' || assessmentId.trim().length === 0) return false;
+  const res = await Assessment.deleteOne({ assessmentId: assessmentId.trim() });
+  return (res.deletedCount || 0) > 0;
 }
 
 /**
  * PUBLIC_INTERFACE
- * Clears all assessments from the in-memory store.
+ * Clears all assessments from the store.
  *
  * @returns {Promise<void>} resolves when cleared
  */
 async function clearAll() {
-  assessmentsById.clear();
+  await Assessment.deleteMany({});
 }
 
 module.exports = {
