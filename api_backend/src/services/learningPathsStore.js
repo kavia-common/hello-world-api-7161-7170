@@ -169,6 +169,16 @@ async function deleteLearningPath(learningPathName) {
   return learningPathsByName.delete(learningPathName);
 }
 
+/**
+ * PUBLIC_INTERFACE
+ * Clears all learning paths from the in-memory store.
+ *
+ * @returns {Promise<void>} resolves when cleared
+ */
+async function clearAll() {
+  learningPathsByName.clear();
+}
+
 module.exports = {
   createLearningPath,
   listLearningPaths,
@@ -176,4 +186,5 @@ module.exports = {
   replaceLearningPath,
   patchLearningPath,
   deleteLearningPath,
+  clearAll,
 };

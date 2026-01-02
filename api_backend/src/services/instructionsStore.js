@@ -250,6 +250,17 @@ async function deleteInstruction(id) {
   return true;
 }
 
+/**
+ * PUBLIC_INTERFACE
+ * Clears all instructions from the in-memory store (including slug index).
+ *
+ * @returns {Promise<void>} resolves when cleared
+ */
+async function clearAll() {
+  instructionsById.clear();
+  slugToId.clear();
+}
+
 module.exports = {
   createInstruction,
   listInstructions,
@@ -257,5 +268,6 @@ module.exports = {
   replaceInstruction,
   patchInstruction,
   deleteInstruction,
+  clearAll,
 };
 

@@ -173,6 +173,16 @@ async function deleteEmployee(employeeId) {
   return employeesById.delete(employeeId);
 }
 
+/**
+ * PUBLIC_INTERFACE
+ * Clears all employees from the in-memory store.
+ *
+ * @returns {Promise<void>} resolves when cleared
+ */
+async function clearAll() {
+  employeesById.clear();
+}
+
 module.exports = {
   createEmployee,
   listEmployees,
@@ -180,4 +190,5 @@ module.exports = {
   replaceEmployee,
   patchEmployee,
   deleteEmployee,
+  clearAll,
 };

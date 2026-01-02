@@ -12,6 +12,7 @@ const authController = require('../controllers/auth');
 const healthController = require('../controllers/health');
 const metricsController = require('../controllers/metrics');
 const backupController = require('../controllers/backup');
+const restoreController = require('../controllers/restore');
 
 const { verifyJwt, requireRole } = require('../middleware/auth');
 
@@ -56,6 +57,8 @@ const router = express.Router();
  *     description: Aggregated metrics endpoints
  *   - name: Backup
  *     description: Backup endpoints
+ *   - name: Restore
+ *     description: Restore endpoints
  */
 
 /**
@@ -1110,5 +1113,136 @@ router.get('/backup', backupController.listBackups);
  *         description: Failed to read snapshot (IO or JSON parse error)
  */
 router.get('/backup/:id', backupController.getBackupById);
+
+/**
+ * @openapi
+ * components:
+ *   schemas:
+ *     RestoreRequest:
+ *       type: object
+ *       description: Request to restore state from a backup snapshot.
+ *       properties:
+ *         snapshotId:
+ *           type: string
+ *           description: Snapshot id (uuid) or filename (uuid.json) to load from disk.
+ *         snapshot:
+ *           type: object
+ *           description: Full snapshot object (as returned by GET /backup/{id} or created by POST /backup).
+ *       oneOf:
+ *         - required: [snapshotId]
+ *         - required: [snapshot]
+ *     RestoreResourceCount:
+ *       type: object
+ *       properties:
+ *         attempted:
+ *           type: integer
+ *           example: 10
+ *         restored:
+ *           type: integer
+ *           example: 10
+ *         failed:
+ *           type: integer
+ *           example: 0
+ *     RestoreSummary:
+ *       type: object
+ *       properties:
+ *         employees:
+ *           $ref: '#/components/schemas/RestoreResourceCount'
+ *         skillFactories:
+ *           $ref: '#/components/schemas/RestoreResourceCount'
+ *         learningPaths:
+ *           $ref: '#/components/schemas/RestoreResourceCount'
+ *         assessments:
+ *           $ref: '#/components/schemas/RestoreResourceCount'
+ *         instructions:
+ *           $ref: '#/components/schemas/RestoreResourceCount'
+ *         announcements:
+ *           $ref: '#/components/schemas/RestoreResourceCount'
+ *     RestoreErrorItem:
+ *       type: object
+ *       properties:
+ *         resource:
+ *           type: string
+ *           example: employees
+ *         index:
+ *           type: integer
+ *           example: 0
+ *         message:
+ *           type: string
+ *           example: Employee with this employeeId already exists.
+ *     RestoreResponse:
+ *       type: object
+ *       properties:
+ *         status:
+ *           type: string
+ *           example: success
+ *         data:
+ *           type: object
+ *           properties:
+ *             restoreMode:
+ *               type: string
+ *               enum: [replace, merge]
+ *             snapshotId:
+ *               type: string
+ *               description: Snapshot id if present in the snapshot payload.
+ *             timestamp:
+ *               type: string
+ *               format: date-time
+ *             kind:
+ *               type: string
+ *             summary:
+ *               $ref: '#/components/schemas/RestoreSummary'
+ *             warnings:
+ *               type: array
+ *               items:
+ *                 type: string
+ *             errors:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/RestoreErrorItem'
+ *
+ * /restore:
+ *   post:
+ *     tags: [Restore]
+ *     summary: Restore state from a backup snapshot
+ *     description: |
+ *       Restores in-memory application state by replaying create operations for each resource.
+ *
+ *       Default behavior is idempotent-safe **replace** mode which clears current in-memory stores first.
+ *       Use `?restoreMode=merge` to keep existing data and attempt to insert from the snapshot.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: restoreMode
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum: [replace, merge]
+ *           default: replace
+ *         description: replace clears existing in-memory stores before restore; merge keeps existing data.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/RestoreRequest'
+ *     responses:
+ *       200:
+ *         description: Restore completed (may include per-item errors)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/RestoreResponse'
+ *       400:
+ *         description: Validation failed (missing snapshotId/snapshot, or invalid payload)
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       500:
+ *         description: Failed to restore (unexpected server error)
+ */
+router.post('/restore', verifyJwt, requireRole(['admin', 'manager']), restoreController.restore);
 
 module.exports = router;

@@ -167,6 +167,16 @@ async function deleteAssessment(assessmentId) {
   return assessmentsById.delete(assessmentId);
 }
 
+/**
+ * PUBLIC_INTERFACE
+ * Clears all assessments from the in-memory store.
+ *
+ * @returns {Promise<void>} resolves when cleared
+ */
+async function clearAll() {
+  assessmentsById.clear();
+}
+
 module.exports = {
   createAssessment,
   listAssessments,
@@ -174,4 +184,5 @@ module.exports = {
   replaceAssessment,
   patchAssessment,
   deleteAssessment,
+  clearAll,
 };

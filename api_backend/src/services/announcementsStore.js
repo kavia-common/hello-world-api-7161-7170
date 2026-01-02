@@ -297,6 +297,16 @@ async function deleteAnnouncement(id) {
   return true;
 }
 
+/**
+ * PUBLIC_INTERFACE
+ * Clears all announcements from the in-memory store.
+ *
+ * @returns {Promise<void>} resolves when cleared
+ */
+async function clearAll() {
+  announcementsById.clear();
+}
+
 module.exports = {
   ALLOWED_PRIORITIES,
   createAnnouncement,
@@ -305,4 +315,5 @@ module.exports = {
   replaceAnnouncement,
   patchAnnouncement,
   deleteAnnouncement,
+  clearAll,
 };

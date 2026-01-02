@@ -167,6 +167,16 @@ async function deleteSkillFactory(skillFactoryId) {
   return skillFactoriesById.delete(skillFactoryId);
 }
 
+/**
+ * PUBLIC_INTERFACE
+ * Clears all skill factories from the in-memory store.
+ *
+ * @returns {Promise<void>} resolves when cleared
+ */
+async function clearAll() {
+  skillFactoriesById.clear();
+}
+
 module.exports = {
   createSkillFactory,
   listSkillFactories,
@@ -174,4 +184,5 @@ module.exports = {
   replaceSkillFactory,
   patchSkillFactory,
   deleteSkillFactory,
+  clearAll,
 };
