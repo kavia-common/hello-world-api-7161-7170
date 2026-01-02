@@ -2,8 +2,8 @@
 
 const app = require('./app');
 
-const PORT = Number(process.env.PORT) || 3001;
-const HOST = process.env.HOST || '0.0.0.0';
+const PORT = Number(process.env.PORT ?? 3001) || 3001;
+const HOST = process.env.HOST ?? '0.0.0.0';
 
 /**
  * PUBLIC_INTERFACE
@@ -18,8 +18,9 @@ const HOST = process.env.HOST || '0.0.0.0';
  * @returns {Promise<import('http').Server>} Running HTTP server.
  */
 async function start() {
-  const server = app.listen(PORT, HOST, () => {
-    console.log(`Server running at http://${HOST}:${PORT}`);
+  // Explicitly bind host+port so container networking is reliable.
+  const server = app.listen(Number(PORT) || 3001, HOST || '0.0.0.0', () => {
+    console.log(`Server running at http://${HOST || '0.0.0.0'}:${Number(PORT) || 3001}`);
   });
 
   const shutdown = async (signal) => {
