@@ -973,25 +973,104 @@ router.get('/metrics/skill-factories', metricsController.getSkillFactoriesMetric
 
 /**
  * @openapi
+ * components:
+ *   schemas:
+ *     BackupSnapshotMeta:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *           description: Snapshot id (also the JSON filename without extension).
+ *         filename:
+ *           type: string
+ *           description: Snapshot JSON filename on disk.
+ *         timestamp:
+ *           type: string
+ *           format: date-time
+ *           description: ISO timestamp embedded in the snapshot content (if available).
+ *         sizeBytes:
+ *           type: integer
+ *           description: File size in bytes.
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *           description: Filesystem mtime (used as a fallback when timestamp is missing).
+ *     BackupSnapshot:
+ *       type: object
+ *       description: Full JSON snapshot content persisted to disk.
+ *       properties:
+ *         id:
+ *           type: string
+ *         timestamp:
+ *           type: string
+ *           format: date-time
+ *         kind:
+ *           type: string
+ *           example: public-get-snapshot
+ *         data:
+ *           type: object
+ *         metadata:
+ *           type: object
+ *
  * /backup:
  *   get:
  *     tags: [Backup]
  *     summary: List backups
+ *     description: Lists available JSON snapshot files stored on disk.
  *     responses:
  *       200:
- *         description: List backups
+ *         description: List of snapshot metadata
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 count:
+ *                   type: integer
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/BackupSnapshotMeta'
+ *       500:
+ *         description: Failed to list backups
  *   post:
  *     tags: [Backup]
  *     summary: Create backup
+ *     description: Aggregates all public GET endpoints into a single JSON snapshot and writes it to disk.
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       201:
- *         description: Created
+ *         description: Snapshot created and persisted to disk
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     filename:
+ *                       type: string
+ *                     timestamp:
+ *                       type: string
+ *                       format: date-time
+ *                     sizeBytes:
+ *                       type: integer
  *       401:
  *         description: Unauthorized
  *       403:
  *         description: Forbidden
+ *       500:
+ *         description: Failed to create backup
  */
 router.post('/backup', verifyJwt, requireRole(['admin', 'manager']), backupController.createBackup);
 router.get('/backup', backupController.listBackups);
@@ -1002,17 +1081,33 @@ router.get('/backup', backupController.listBackups);
  *   get:
  *     tags: [Backup]
  *     summary: Get backup by id
+ *     description: Reads a snapshot JSON file from disk and returns its full content.
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema:
  *           type: string
+ *         description: Snapshot id (uuid) or filename (uuid.json).
  *     responses:
  *       200:
- *         description: Backup
+ *         description: Snapshot content
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   $ref: '#/components/schemas/BackupSnapshot'
+ *       400:
+ *         description: Missing id
  *       404:
- *         description: Not found
+ *         description: Snapshot not found
+ *       500:
+ *         description: Failed to read snapshot (IO or JSON parse error)
  */
 router.get('/backup/:id', backupController.getBackupById);
 
