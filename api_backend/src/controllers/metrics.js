@@ -1,9 +1,9 @@
 'use strict';
 
-const employeesStore = require('../services/employeesStore');
-const skillFactoriesStore = require('../services/skillFactoriesStore');
-const learningPathsStore = require('../services/learningPathsStore');
-const assessmentsStore = require('../services/assessmentsStore');
+const Employee = require('../db/models/Employee');
+const SkillFactory = require('../db/models/SkillFactory');
+const LearningPath = require('../db/models/LearningPath');
+const Assessment = require('../db/models/Assessment');
 
 function toFiniteNumber(value) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
@@ -54,7 +54,7 @@ function inferEmployeeBilled(employee) {
 }
 
 /**
- * Computes per-learning-path metrics from LearningPaths store.
+ * Computes per-learning-path metrics from LearningPaths documents.
  *
  * @param {any[]} learningPaths
  * @returns {Array<{ learningPathName: string, enrolled: number, completed: number, inProgress: number, completionRate: number }>}
@@ -97,7 +97,10 @@ function parseDateToMs(value) {
 }
 
 /**
- * Computes per-skill-factory metrics from SkillFactories store.
+ * Computes per-skill-factory metrics from SkillFactories documents.
+ *
+ * NOTE: This requires reading the embedded employees array in each SkillFactory,
+ * so it's not feasible to compute fully via counts without changing schema.
  *
  * @param {any[]} skillFactories
  * @returns {Array<{ skillFactoryId?: string, skillFactoryName: string, mentorCount: number, employeeCount: number, inPoolCount: number, notInPoolCount: number, durationStatsDays: { avg: number, min: number, max: number } }>}
@@ -150,56 +153,114 @@ function computeSkillFactoryHighlights(skillFactories) {
 }
 
 /**
- * Computes marks average from a list of items with optional numeric "marks".
+ * Runs a MongoDB aggregation on Assessments to compute totals + average marks.
  *
- * @param {any[]} items
- * @returns {{ count: number, withMarksCount: number, averageMarks: number|null }}
+ * Returns the same shape as the prior in-memory helper:
+ * { count, withMarksCount, averageMarks }
+ *
+ * @returns {Promise<{ count: number, withMarksCount: number, averageMarks: number|null }>}
  */
-function computeMarksAverage(items) {
-  const all = safeArray(items);
-  let withMarksCount = 0;
-  let sum = 0;
+async function computeAssessmentMarksMetricsMongo() {
+  const pipeline = [
+    {
+      $project: {
+        _marksNumber: {
+          // Convert numeric-ish values to number, otherwise null.
+          $convert: { input: '$marks', to: 'double', onError: null, onNull: null },
+        },
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        count: { $sum: 1 },
+        withMarksCount: { $sum: { $cond: [{ $ne: ['$_marksNumber', null] }, 1, 0] } },
+        averageMarks: { $avg: '$_marksNumber' },
+      },
+    },
+  ];
 
-  for (const it of all) {
-    const marks = it && typeof it === 'object' ? toFiniteNumber(it.marks) : undefined;
-    if (marks === undefined) continue;
-    withMarksCount += 1;
-    sum += marks;
-  }
+  const rows = await Assessment.aggregate(pipeline).allowDiskUse(false);
+  const row = rows && rows[0];
 
   return {
-    count: all.length,
-    withMarksCount,
-    averageMarks: withMarksCount > 0 ? sum / withMarksCount : null,
+    count: row && typeof row.count === 'number' ? row.count : 0,
+    withMarksCount: row && typeof row.withMarksCount === 'number' ? row.withMarksCount : 0,
+    averageMarks: row && typeof row.averageMarks === 'number' ? row.averageMarks : null,
   };
 }
 
 class MetricsController {
   /**
    * PUBLIC_INTERFACE
-   * Returns a high-level metrics summary aggregated across the in-memory stores:
+   * Returns a high-level metrics summary aggregated across persisted MongoDB collections:
    * - learningPaths
    * - skillFactories
    * - employees (including billed counts inferred safely)
    * - assessments (counts + optional average marks)
    *
-   * No data is persisted; metrics are computed per-request.
+   * Metrics are computed per-request from MongoDB-backed resources.
    *
    * @param {import('express').Request} req Express request
    * @param {import('express').Response} res Express response
    * @returns {Promise<import('express').Response>} 200 response with summary payload.
    */
   async summary(req, res) {
-    const [employees, skillFactories, learningPaths, assessments] = await Promise.all([
-      employeesStore.listEmployees(),
-      skillFactoriesStore.listSkillFactories(),
-      learningPathsStore.listLearningPaths(),
-      assessmentsStore.listAssessments(),
+    // Query optimization strategy:
+    // - Use countDocuments/aggregate where we can (employees totals/billed, assessments avg).
+    // - Only load full documents where required for response shape (learning path list, skill factories list).
+    const [
+      totalEmployees,
+      billedCount,
+      learningPathsDocs,
+      skillFactoriesDocs,
+      assessmentsMarks,
+    ] = await Promise.all([
+      Employee.countDocuments({}),
+      // We can infer billed from either explicit boolean flags OR from currentStatus values.
+      // This is a lightweight aggregation (no full doc fetch needed).
+      Employee.aggregate([
+        {
+          $project: {
+            _explicitBilled: {
+              $cond: [
+                { $in: [{ $type: '$isBilled' }, ['bool']] },
+                '$isBilled',
+                {
+                  $cond: [
+                    { $in: [{ $type: '$billed' }, ['bool']] },
+                    '$billed',
+                    null,
+                  ],
+                },
+              ],
+            },
+            _statusLower: { $toLower: { $trim: { input: { $ifNull: ['$currentStatus', ''] } } } },
+          },
+        },
+        {
+          $project: {
+            _isBilledComputed: {
+              $cond: [
+                { $ne: ['$_explicitBilled', null] },
+                '$_explicitBilled',
+                { $in: ['$_statusLower', ['billed', 'active']] },
+              ],
+            },
+          },
+        },
+        { $group: { _id: null, billedCount: { $sum: { $cond: ['$_isBilledComputed', 1, 0] } } } },
+      ]).then((rows) => (rows && rows[0] ? rows[0].billedCount : 0)),
+      // Keep response identical: topPaths + totals rely on per-path completion rates.
+      LearningPath.find({}, { _id: 0 }).lean(),
+      // Keep response identical: duration stats rely on embedded skill factory employees array.
+      SkillFactory.find({}, { _id: 0 }).lean(),
+      computeAssessmentMarksMetricsMongo(),
     ]);
 
-    const learningHighlights = computeLearningPathHighlights(learningPaths);
+    const learningHighlights = computeLearningPathHighlights(learningPathsDocs);
 
-    const learningDurationsNumeric = safeArray(learningPaths)
+    const learningDurationsNumeric = safeArray(learningPathsDocs)
       .map((lp) => (lp && typeof lp === 'object' ? toFiniteNumber(lp.duration) : undefined))
       .filter((n) => typeof n === 'number' && Number.isFinite(n));
 
@@ -222,9 +283,9 @@ class MetricsController {
       averageDuration, // null when not computable
     };
 
-    const skillHighlights = computeSkillFactoryHighlights(skillFactories);
-    const totalMentors = safeArray(skillFactories).reduce((a, sf) => a + safeArray(sf && sf.mentors).length, 0);
-    const totalEmployeesInFactories = safeArray(skillFactories).reduce(
+    const skillHighlights = computeSkillFactoryHighlights(skillFactoriesDocs);
+    const totalMentors = safeArray(skillFactoriesDocs).reduce((a, sf) => a + safeArray(sf && sf.mentors).length, 0);
+    const totalEmployeesInFactories = safeArray(skillFactoriesDocs).reduce(
       (a, sf) => a + safeArray(sf && sf.employees).length,
       0
     );
@@ -253,12 +314,8 @@ class MetricsController {
       },
     };
 
-    const totalEmployees = safeArray(employees).length;
-    const billedCount = safeArray(employees).reduce((a, e) => a + (inferEmployeeBilled(e) ? 1 : 0), 0);
     const notBilledCount = totalEmployees - billedCount;
     const billingRate = totalEmployees > 0 ? billedCount / totalEmployees : 0;
-
-    const assessmentsMarks = computeMarksAverage(assessments);
 
     return res.status(200).json({
       status: 'success',
@@ -289,12 +346,14 @@ class MetricsController {
    * - inProgress
    * - completionRate
    *
+   * Data is read from MongoDB (Mongoose model).
+   *
    * @param {import('express').Request} req Express request
    * @param {import('express').Response} res Express response
    * @returns {Promise<import('express').Response>} 200 response with list payload.
    */
   async learningPaths(req, res) {
-    const learningPaths = await learningPathsStore.listLearningPaths();
+    const learningPaths = await LearningPath.find({}, { _id: 0 }).lean();
     const highlights = computeLearningPathHighlights(learningPaths).map((x) => ({
       learningPathName: x.learningPathName,
       enrolled: x.enrolled,
@@ -319,12 +378,17 @@ class MetricsController {
    * - inPoolCount
    * - notInPoolCount
    *
+   * Data is read from MongoDB (Mongoose model).
+   *
    * @param {import('express').Request} req Express request
    * @param {import('express').Response} res Express response
    * @returns {Promise<import('express').Response>} 200 response with list payload.
    */
   async skillFactories(req, res) {
-    const skillFactories = await skillFactoriesStore.listSkillFactories();
+    // We need embedded mentors/employees arrays to compute pool counts and duration stats;
+    // fetch full docs (minus _id) in one query.
+    const skillFactories = await SkillFactory.find({}, { _id: 0 }).lean();
+
     const highlights = computeSkillFactoryHighlights(skillFactories).map((sf) => ({
       skillFactoryId: sf.skillFactoryId,
       skillFactoryName: sf.skillFactoryName,
